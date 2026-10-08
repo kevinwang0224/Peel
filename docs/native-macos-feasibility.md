@@ -31,8 +31,8 @@
 
 | 现有组件 | 原生候选/处理方式 | 难度与关键约束 |
 | --- | --- | --- |
-| Electron 主窗口、临时窗口 | NSWindow / NSWindowController，SwiftUI 承载常规界面 | 低至中；保留临时窗口保存/丢弃和焦点行为 |
-| React hooks、Tailwind、Radix/shadcn | SwiftUI 状态与原生控件，必要时桥接 AppKit | 中；需重写，保留工作台布局和流程，无需逐像素复制 CSS |
+| Electron 主窗口、临时窗口 | NSWindow / NSWindowController，AppKit 承载常规界面 | 低至中；保留临时窗口保存/丢弃和焦点行为 |
+| React hooks、Tailwind、Radix/shadcn | AppKit 控件与原生模型状态 | 中；需重写，保留工作台布局和流程，无需逐像素复制 CSS |
 | Framer Motion、Sonner、Lucide | 原生动画、轻量反馈、SF Symbols 或既有资源 | 低；避免后台持续动画 |
 | JSON 原文 Monaco | 优先验证 Scintilla + Lexilla 的 Cocoa 版本，以 STTextView 作对比候选 | 中至高；有现成高亮和折叠基础，仍需 Swift 桥接、错误范围、输入法、长行等验收 |
 | JS/JSONPath 表达式 Monaco | 同一原生编辑器封装，按语言启用功能 | 中；JS 高亮与执行保留，完整 JS 语义诊断/补全不作为首版承诺 |

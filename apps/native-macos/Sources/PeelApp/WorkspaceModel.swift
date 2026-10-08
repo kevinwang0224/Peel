@@ -30,6 +30,7 @@ final class WorkspaceModel: ObservableObject {
   var onSelectionChanged: ((String) -> Void)?
   private var record: HistoryRecord?
   private var revision = 0
+  private var extractionRevision = 0
   private var analysis: Task<Void, Never>?
   private var extractionTask: Task<Void, Never>?
   private var saveTask: Task<Void, Never>?
@@ -129,6 +130,7 @@ final class WorkspaceModel: ObservableObject {
     dirty = false
     result = ExtractionResult(status: "idle", text: "")
     revision += 1
+    extractionRevision += 1
     onSelectionChanged?(record.id)
     scheduleAnalysis()
     scheduleExtraction()
@@ -137,6 +139,7 @@ final class WorkspaceModel: ObservableObject {
     guard ready, !transitioning, record != nil else { return }
     text = value
     textRevision += 1
+    extractionRevision += 1
     changed()
     scheduleAnalysis()
     scheduleExtraction()
@@ -149,12 +152,14 @@ final class WorkspaceModel: ObservableObject {
   func setMode(_ mode: ExtractionMode) {
     guard ready, !transitioning, record != nil else { return }
     extraction.mode = mode
+    extractionRevision += 1
     changed()
     scheduleExtraction()
   }
   func setQuery(_ value: String) {
     guard ready, !transitioning, record != nil else { return }
     extraction.queries[extraction.mode.rawValue] = value
+    extractionRevision += 1
     changed()
     scheduleExtraction()
   }
@@ -235,12 +240,12 @@ final class WorkspaceModel: ObservableObject {
   func format(compact: Bool) {
     guard ready, !transitioning, record != nil else { return }
     let source = text
-    let version = revision
+    let version = textRevision
     Task {
       let result = await Task.detached(priority: .userInitiated) {
         Result { try JSONDocument.formatInput(source, compact: compact) }
       }.value
-      guard version == revision else { return }
+      guard version == textRevision else { return }
       switch result {
       case .success(let output): edit(output)
       case .failure(let error): self.error = error.localizedDescription
@@ -250,13 +255,13 @@ final class WorkspaceModel: ObservableObject {
   private func scheduleAnalysis() {
     analysis?.cancel()
     let source = text
-    let version = revision
+    let version = textRevision
     analysis = Task { [weak self] in
       do { try await Task.sleep(for: .milliseconds(180)) } catch { return }
       let value = await Task.detached(priority: .userInitiated) {
         Result { try JSONDocument.summary(source) }
       }.value
-      guard !Task.isCancelled, let self, version == self.revision else { return }
+      guard !Task.isCancelled, let self, version == self.textRevision else { return }
       switch value {
       case .success(let summary):
         self.summary = summary
@@ -284,16 +289,16 @@ final class WorkspaceModel: ObservableObject {
     extractionTask = Task { [weak self] in await self?.evaluate() }
   }
   private func evaluate() async {
-    let version = revision
+    let version = extractionRevision
     let request = ExtractionRequest(mode: extraction.mode, query: query, text: text)
     busy = true
     do {
       let value = try await runner.run(request)
-      guard !Task.isCancelled, version == revision else { return }
+      guard !Task.isCancelled, version == extractionRevision else { return }
       result = value
       busy = false
     } catch {
-      guard !Task.isCancelled, version == revision else { return }
+      guard !Task.isCancelled, version == extractionRevision else { return }
       result = ExtractionResult(status: "error", text: error.localizedDescription)
       busy = false
     }

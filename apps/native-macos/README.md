@@ -22,7 +22,7 @@ From the repository root, `npm run native:build`, `npm run native:test` and `npm
 - Format, compact, and pasted string-wrapped / backslash-escaped JSON conversion. Formatting preserves numeric spelling and property order; valid `null` stays `null`.
 - JavaScript `data` expressions, pure JavaScript Promises, and JSONPath Plus queries. Browser APIs such as `fetch` are unavailable.
 - Automatic extraction after 400 ms idle for documents up to 1 MiB; larger documents run manually. Superseded tasks are cancelled, scripts time out after approximately 1.2 seconds, and results over 16 MiB are rejected. At most two helper processes run concurrently across the app.
-- History title/body substring search, rename, pin, delete and automatic per-record saving. Lists are paged and contain metadata only; document bodies load on demand.
+- History title/body substring search, rename, pin, delete and automatic per-record saving. Lists are paged and contain metadata only; document bodies load on demand. The selected document is restored when reopening the workspace.
 - File import/export, native Edit menu commands, Find/Replace, appearance/font settings, menu-bar entry, configurable global Quick Paste shortcut, and independent scratch windows.
 - Closing the main window saves before closing and releases its workspace. The menu bar and shortcut remain available; scratch windows have Save/Cancel/Discard handling.
 
@@ -57,6 +57,8 @@ swift run --package-path apps/native-macos -c release PeelBench
 ```
 
 For an isolated manual session, set `PEEL_DATA_DIRECTORY` to a temporary directory and `PEEL_SKIP_MIGRATION=1`. `PEEL_METRICS=1` prints startup timing. `PEEL_BENCHMARK=1` drives a synthetic editing benchmark, closes its window, reports memory and exits; use it only with an isolated store.
+
+Measured implementation results and remaining limits are recorded in [the implementation report](../../docs/native-macos-implementation.md).
 
 The target is macOS 14; actual execution has currently been checked on macOS 27 / Apple M3 Max. Testing the minimum OS and a full end-to-end latency measurement remain separate validation tasks.
 
