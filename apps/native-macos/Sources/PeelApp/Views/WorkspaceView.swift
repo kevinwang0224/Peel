@@ -28,16 +28,8 @@ struct WorkspaceView: View {
         .navigationSplitViewStyle(.balanced)
       }
     }
+    .toolbar(removing: .sidebarToggle)
     .navigationTitle(title)
-    .toolbar { WorkspaceCommands(model: model, presentation: presentation, actions: actions) }
-    .toolbarTitleMenu {
-      Button("Rename…", systemImage: "pencil") {
-        presentation.renameText = model.title
-        presentation.renameVisible = true
-      }
-      Button("Export JSON…", systemImage: "square.and.arrow.up") { actions.exportFile?() }
-      Button("Compact JSON", systemImage: "text.justify") { model.format(compact: true) }
-    }
     .disabled(!model.ready || model.transitioning)
     .alert("Rename JSON", isPresented: $presentation.renameVisible) {
       TextField("Title", text: $presentation.renameText)
@@ -53,34 +45,6 @@ struct WorkspaceView: View {
       Text(model.error ?? "")
     }
     .preferredColorScheme(theme)
-  }
-}
-
-@MainActor
-private struct WorkspaceCommands: ToolbarContent {
-  let model: WorkspaceModel
-  @ObservedObject var presentation: WorkspacePresentation
-  let actions: WorkspaceActions
-  var body: some ToolbarContent {
-    ToolbarItemGroup(placement: .navigation) {
-      if !model.temporary {
-        Button("New JSON", systemImage: "square.and.pencil") { Task { await model.create() } }
-          .help("New JSON (⌘N)")
-      }
-      Button("Open…", systemImage: "folder") { actions.importFile?() }.help("Open (⌘O)")
-    }
-    ToolbarItemGroup(placement: .primaryAction) {
-      Button("Format JSON", systemImage: "text.alignleft") { model.format(compact: false) }
-        .help("Format JSON (⇧⌘F)")
-      Button("Run Extraction", systemImage: "play.fill") { model.run() }.help("Run (⌘Return)")
-      Button("Show / Hide Extraction", systemImage: "sidebar.right") {
-        presentation.toggleExtraction()
-      }
-      if model.temporary {
-        Button("Save to History", systemImage: "tray.and.arrow.down") { actions.saveTemporary?() }
-          .help("Save to history (⌘S)")
-      }
-    }
   }
 }
 

@@ -10,6 +10,22 @@ struct ExtractionPanel: View {
   }
   var body: some View {
     VStack(spacing: 0) {
+      PaneHeading(
+        title: "Result",
+        detail: model.busy ? "Running…" : model.result.status == "error" ? "Error" : "Read only")
+      NativeEditor(model: model, presentation: presentation, role: .result)
+        .accessibilityLabel("Extraction result")
+      HStack {
+        Text(
+          model.result.status == "idle"
+            ? "No result yet"
+            : model.result.status == "error" ? "Extraction failed" : "Extraction complete")
+        Spacer()
+      }
+      .font(.system(size: 10)).foregroundStyle(.secondary)
+      .padding(.horizontal, 12).frame(height: 25)
+      .overlay(alignment: .top) { Divider() }
+      Divider()
       HStack(spacing: 10) {
         Text("Extraction").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
         Spacer(minLength: 4)
@@ -32,22 +48,6 @@ struct ExtractionPanel: View {
           .controlSize(.small).disabled(!model.ready || model.transitioning)
       }
       .padding(.horizontal, 12).frame(height: 32)
-      Divider()
-      PaneHeading(
-        title: "Result",
-        detail: model.busy ? "Running…" : model.result.status == "error" ? "Error" : "Read only")
-      NativeEditor(model: model, presentation: presentation, role: .result)
-        .accessibilityLabel("Extraction result")
-      HStack {
-        Text(
-          model.result.status == "idle"
-            ? "No result yet"
-            : model.result.status == "error" ? "Extraction failed" : "Extraction complete")
-        Spacer()
-      }
-      .font(.system(size: 10)).foregroundStyle(.secondary)
-      .padding(.horizontal, 12).frame(height: 25)
-      .overlay(alignment: .top) { Divider() }
     }
   }
 }

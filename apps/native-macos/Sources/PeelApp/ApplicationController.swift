@@ -25,6 +25,7 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     workspace.exportFile = { [weak self] in self?.exportFile() }
     workspace.saveTemporary = { [weak self] in self?.saveScratch() }
     window.contentViewController = workspace
+    workspace.installToolbar(on: window)
     window.toolbarStyle = .unifiedCompact
     window.delegate = self
     window.center()
@@ -141,6 +142,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   private let launchedAt = ProcessInfo.processInfo.systemUptime
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    if let icon = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") {
+      NSApp.applicationIconImage = NSImage(contentsOf: icon)
+    }
     if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
       print("PEEL_DID_FINISH_MS=\((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000)")
       fflush(stdout)

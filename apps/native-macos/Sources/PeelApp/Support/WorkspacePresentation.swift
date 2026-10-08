@@ -28,6 +28,9 @@ final class WorkspacePresentation: ObservableObject {
   func focus(_ role: EditorRole) {
     if focusedRole != role { focusedRole = role }
   }
+  func toggleSidebar() {
+    columns = columns == .detailOnly ? .all : .detailOnly
+  }
   func toggleExtraction() {
     if resultVisible, focusedRole != .source {
       focus(.source)

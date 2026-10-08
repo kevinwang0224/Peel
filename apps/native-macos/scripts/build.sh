@@ -9,6 +9,7 @@ bin_dir="$(swift build --package-path "$native_root" -c "$configuration" --show-
 app_path="$native_root/build/Peel Native.app"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$bin_dir/PeelNative" "$bin_dir/PeelScript" "$app_path/Contents/MacOS/"
+cp "$native_root/Resources/AppIcon.icns" "$app_path/Contents/Resources/AppIcon.icns"
 ditto "$bin_dir/PeelNative_PeelScript.bundle" "$app_path/Contents/Resources/PeelNative_PeelScript.bundle"
 for cursor in busy flipped; do
   sips -s format tiff "$native_root/Dependencies/scintilla/cocoa/res/mac_cursor_$cursor.png" --out "$app_path/Contents/Resources/mac_cursor_$cursor.tiff" >/dev/null
@@ -25,6 +26,7 @@ cat > "$app_path/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Peel Native</string>
 <key>CFBundleDisplayName</key><string>Peel Native</string>
 <key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleIconFile</key><string>AppIcon.icns</string>
 <key>CFBundleShortVersionString</key><string>0.3.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>

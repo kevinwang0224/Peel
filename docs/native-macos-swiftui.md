@@ -4,16 +4,18 @@
 
 ## 界面与桥接
 
-- `WorkspaceView` 用 NavigationSplitView 组织导航，文档标题融入系统窗口标题栏，常用动作通过 SwiftUI toolbar 展示。
-- 文件菜单及标题菜单保留重命名、导出和压缩入口；View菜单提供侧栏与提取区的显示切换。
+- `WorkspaceView` 用 NavigationSplitView 组织导航，文档标题融入系统窗口标题栏。窗口工具栏由小范围 AppKit 桥接负责，以稳定固定两侧面板开关的位置。
+- 文件及 JSON 菜单保留重命名、导出和压缩入口；View菜单提供侧栏与提取区的显示切换。
 - `HistorySidebar` 使用原生 sidebar List、searchable 与 Pinned/Recent 分组。
-- `ExtractionPanel` 把表达式和结果放在右侧，源码占中央完整高度；隐藏面板销毁两个编辑器，正文/表达式继续由模型持有。
+- `ExtractionPanel` 把结果放在右侧上方、表达式放在下方，源码占中央完整高度；隐藏面板销毁两个编辑器，正文/表达式继续由模型持有。
 - `FindBar` 是窗口内 SwiftUI 查找替换；首次与重复 ⌘F 都请求聚焦，隐藏提取区后将焦点恢复到原文。
 - `SettingsView` 使用分组 Form 与系统 Picker/TextField/Button，设置窗口仍为应用级唯一实例，保留初始化、保存失败、关闭和退出保护。
 - `NativeEditor` 是 NSViewRepresentable；Coordinator 仅维护编辑器的增量同步、焦点、粘贴及通知。视图弱引用保存在窗口局部状态中，隐藏编辑器可释放缓冲。
 - `WorkspaceViewController` 缩减为 NSHostingController 与少量窗口交互边界。AppKit 继续负责保存后关窗、临时窗口、文件对话框、菜单栏入口与全局热键。
 
-使用 build-macos-apps 插件的 swiftui-patterns、appkit-interop 与 view-refactor 指导，按职责分文件。删除旧 AppKit 侧栏/toolbar/chrome 实现。
+使用 build-macos-apps 插件的 swiftui-patterns、appkit-interop 与 view-refactor 指导，按职责分文件。删除旧 AppKit 侧栏/chrome 实现。
+
+后续界面调整复用现有 Peel 图标，将 AppIcon.icns 随原生应用打包，并设置应用图标。工具栏按历史开关、新建、打开、弹性间距、格式化、压缩、运行、右侧面板开关排列；前三项属于系统导航区，禁用自定义排序。真实应用验证左右面板切换后开关位置稳定，Compact 将 JSON 压成单行、Format 恢复缩进，结果区位于提取区上方。发行版构建与本机签名校验通过；此次未重新测量性能。
 
 ## 性能处理
 
