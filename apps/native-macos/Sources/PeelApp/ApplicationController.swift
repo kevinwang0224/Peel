@@ -12,14 +12,14 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
   init(model: WorkspaceModel) {
     self.model = model
     workspace = WorkspaceViewController(model: model)
-    let size = model.temporary ? NSSize(width: 1050, height: 700) : NSSize(width: 1280, height: 820)
+    let size = model.temporary ? NSSize(width: 940, height: 620) : NSSize(width: 1280, height: 820)
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: size),
       styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false
     )
     window.title = model.temporary ? "Peel — Scratch" : "Peel"
     window.isReleasedWhenClosed = false
-    window.contentMinSize = NSSize(width: model.temporary ? 920 : 900, height: 500)
+    window.contentMinSize = NSSize(width: model.temporary ? 720 : 900, height: model.temporary ? 360 : 500)
     super.init(window: window)
     workspace.importFile = { [weak self] in self?.openFile() }
     workspace.openURL = { [weak self] url in self?.open(url) }

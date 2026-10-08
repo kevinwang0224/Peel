@@ -5,7 +5,7 @@ public struct JSONIssue: Error, Equatable, Sendable, LocalizedError {
   public let byteOffset: Int
   public let line: Int
   public let column: Int
-  public var errorDescription: String? { "\(message) (\(line):\(column))" }
+  public var errorDescription: String? { "Line \(line), column \(column): \(message)" }
 }
 
 public struct JSONSummary: Sendable {

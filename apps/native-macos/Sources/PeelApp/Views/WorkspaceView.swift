@@ -49,7 +49,7 @@ struct WorkspaceView: View {
       Button("Go") { presentation.goToLine() }
     }
     .alert(
-      "Peel",
+      "Something Went Wrong",
       isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })
     ) {
       Button("OK") { model.error = nil }

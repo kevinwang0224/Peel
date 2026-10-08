@@ -45,6 +45,6 @@ Done: result pane as a native `.inspector` with a draggable result/expression sp
 
 Second batch: Settings apply immediately (serialized writes; a failed write alerts and rolls the controls back; close/quit stay blocked while a write is in flight); ⌘1/2/3 focus Source/Expression/Result (reveals the inspector if hidden); double-click or context-menu Rename in the sidebar; history loads the next page when the end of the list scrolls into view; whole-window dimming reduced to the editor area while a record is switching; Run uses `NSToolbarItem.style = .prominent` on macOS 26+.
 
-Not done yet: Settings tab toolbar (single form kept), compact Scratch window, improved error wording.
+Third batch: Scratch window defaults to 940×620 (min 720×360); JSON errors read "Line L, column C: message"; error alert titled "Something Went Wrong". Not done: Settings tab toolbar (single form kept).
 
 Benchmark after batch two (release, 1 000 × 10 KB, three runs): ready 461–1833 ms (machine under load, high variance), edit-draw P95 7.2–8.5 ms, idle footprint 91–107 MB.
