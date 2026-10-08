@@ -27,6 +27,7 @@ final class WorkspaceModel: ObservableObject {
   var onSettingsChanged: ((AppSettings) throws -> Void)?
   var onSaved: (() -> Void)?
   var onSettingsSaved: ((AppSettings) -> Void)?
+  var onSelectionChanged: ((String) -> Void)?
   private var record: HistoryRecord?
   private var revision = 0
   private var analysis: Task<Void, Never>?
@@ -51,7 +52,7 @@ final class WorkspaceModel: ObservableObject {
     extraction.queries[extraction.mode.rawValue] ?? (extraction.mode == .javascript ? "data" : "$")
   }
 
-  func bootstrap(legacyFiles: [URL]) async {
+  func bootstrap(legacyFiles: [URL], preferredRecordID: String? = nil) async {
     defer { ready = true }
     do {
       if !temporary {
@@ -64,7 +65,13 @@ final class WorkspaceModel: ObservableObject {
       onSettingsSaved?(settings)
       if !temporary {
         await refresh()
-        if let first = records.first { await select(first.id) } else { await create() }
+        if let preferredRecordID, let preferred = try await store.record(id: preferredRecordID) {
+          load(preferred)
+        } else if let first = records.first {
+          await select(first.id)
+        } else {
+          await create()
+        }
       } else {
         scheduleAnalysis()
         scheduleExtraction()
@@ -122,6 +129,7 @@ final class WorkspaceModel: ObservableObject {
     dirty = false
     result = ExtractionResult(status: "idle", text: "")
     revision += 1
+    onSelectionChanged?(record.id)
     scheduleAnalysis()
     scheduleExtraction()
   }

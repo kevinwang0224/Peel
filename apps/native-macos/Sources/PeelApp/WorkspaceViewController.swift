@@ -23,6 +23,8 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   private var resultEditor: PeelEditorView?
   private let resultTitle = NSTextField(labelWithString: "Result")
   private let documentSplit = NSSplitView()
+  private let workspaceSplit = NSSplitView()
+  private var needsInitialSplitLayout = true
   private var resultPane: NSView?
   private let findField = NSSearchField()
   private let replaceField = NSTextField()
@@ -72,7 +74,7 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
     view.addSubview(toolbar)
     toolbar.translatesAutoresizingMaskIntoConstraints = false
 
-    let workspace = NSSplitView()
+    let workspace = workspaceSplit
     workspace.isVertical = true
     workspace.dividerStyle = .thin
     if !model.temporary { workspace.addArrangedSubview(makeSidebar()) }
@@ -88,7 +90,7 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
     controls.spacing = 10
     controls.addArrangedSubview(NSTextField(labelWithString: "Extraction"))
     mode.target = self
-    mode.action = #selector(changeMode)
+    mode.action = #selector(extractionModeChanged(_:))
     controls.addArrangedSubview(mode)
     controls.addArrangedSubview(spacer())
     controls.addArrangedSubview(button("Run  ⌘↵", #selector(run)))
@@ -170,6 +172,14 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
       Task { @MainActor in self?.render() }
     }
     render()
+  }
+  override func viewDidLayout() {
+    super.viewDidLayout()
+    if needsInitialSplitLayout, documentSplit.bounds.width > 500 {
+      needsInitialSplitLayout = false
+      if !model.temporary { workspaceSplit.setPosition(230, ofDividerAt: 0) }
+      documentSplit.setPosition(documentSplit.bounds.width / 2, ofDividerAt: 0)
+    }
   }
   override func viewDidAppear() {
     super.viewDidAppear()
@@ -404,6 +414,9 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   @objc private func format() { model.format(compact: false) }
   @objc private func compact() { model.format(compact: true) }
   @objc private func run() { model.run() }
+  @objc private func extractionModeChanged(_ sender: NSSegmentedControl) {
+    model.setMode(sender.selectedSegment == 0 ? .javascript : .jsonpath)
+  }
   @objc private func revealIssue() { model.revealError += 1 }
   @objc private func toggleResult() {
     if let pane = resultPane {

@@ -82,8 +82,11 @@ extension ExtractionRunnerTests {
   }
   func testSerializationFailuresAndNullRejectionReturnErrorsWithoutTimingOut() async throws {
     let runner = ExtractionRunner(executable: executable)
-    for query in ["({ n: 1n })", "(() => { const a = {}; a.self = a; return a })()", "Promise.reject(null)"] {
-      let result = try await runner.run(ExtractionRequest(mode: .javascript, query: query, text: "{}"))
+    for query in [
+      "({ n: 1n })", "(() => { const a = {}; a.self = a; return a })()", "Promise.reject(null)",
+    ] {
+      let result = try await runner.run(
+        ExtractionRequest(mode: .javascript, query: query, text: "{}"))
       XCTAssertEqual(result.status, "error")
       XCTAssertFalse(result.text.isEmpty)
     }

@@ -77,9 +77,12 @@ extern const Lexilla::LexerModule lmCPP;
         [_editor message:SCI_SETMARGINMASKN wParam:1 lParam:SC_MASK_FOLDERS];
         [_editor message:SCI_SETMARGINWIDTHN wParam:1 lParam:16];
         [_editor message:SCI_SETMARGINSENSITIVEN wParam:1 lParam:1];
-        for (int marker = SC_MARKNUM_FOLDEREND; marker <= SC_MARKNUM_FOLDEROPEN; marker++) {
-            [_editor message:SCI_MARKERDEFINE wParam:marker lParam:SC_MARK_BOXPLUS];
-        }
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEREND lParam:SC_MARK_BOXPLUSCONNECTED];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEROPENMID lParam:SC_MARK_BOXMINUSCONNECTED];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERMIDTAIL lParam:SC_MARK_TCORNER];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERTAIL lParam:SC_MARK_LCORNER];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERSUB lParam:SC_MARK_VLINE];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDER lParam:SC_MARK_BOXPLUS];
         [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEROPEN lParam:SC_MARK_BOXMINUS];
         [_editor message:SCI_SETAUTOMATICFOLD wParam:SC_AUTOMATICFOLD_SHOW | SC_AUTOMATICFOLD_CLICK | SC_AUTOMATICFOLD_CHANGE];
         [_editor message:SCI_SETINDENT wParam:2];
@@ -148,7 +151,8 @@ extern const Lexilla::LexerModule lmCPP;
     }
 }
 - (void)configureLanguage:(NSString *)language dark:(BOOL)dark fontSize:(NSInteger)fontSize readOnly:(BOOL)readOnly {
-    if (_configured && [_language isEqualToString:language] && _fontSize == fontSize && _dark == dark && _editor.isEditable == !readOnly) return;
+    if (_editor.isEditable == readOnly) [_editor setEditable:!readOnly];
+    if (_configured && [_language isEqualToString:language] && _fontSize == fontSize && _dark == dark) return;
     _configured = YES; _fontSize = fontSize; _dark = dark;
     if (![_language isEqualToString:language]) {
         _language = [language copy];

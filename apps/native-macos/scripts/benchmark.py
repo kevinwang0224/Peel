@@ -36,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='peel-native-perf-') as directory:
     env = dict(os.environ, PEEL_DATA_DIRECTORY=directory, PEEL_SKIP_MIGRATION='1', PEEL_METRICS='1', PEEL_BENCHMARK='1')
     executable = native / 'build' / 'Peel Native.app' / 'Contents' / 'MacOS' / 'PeelNative'
     started = time.monotonic()
-    process = subprocess.Popen([str(executable)], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    process = subprocess.Popen([str(executable)], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     metrics = {'history_records': args.records, 'history_record_bytes': args.record_bytes,
@@ -44,6 +44,15 @@ with tempfile.TemporaryDirectory(prefix='peel-native-perf-') as directory:
                'macos': subprocess.check_output(['sw_vers', '-productVersion'], text=True).strip(),
                'edit_metric': 'editor insertion plus synchronous AppKit redraw; excludes keyboard dispatch and display scan-out'}
     peak = 0
+    pending = b''
+    def consume(line):
+        line = line.decode('utf-8', errors='replace').strip()
+        if line.startswith('PEEL_'):
+            print(line, flush=True)
+            name, value = line.split('=', 1)
+            metrics[name] = float(value)
+            if name == 'PEEL_READY_MS':
+                metrics['process_launch_to_ready_ms'] = (time.monotonic() - started) * 1000
     try:
         while process.poll() is None:
             if time.monotonic() - started > 90:
@@ -55,17 +64,13 @@ with tempfile.TemporaryDirectory(prefix='peel-native-perf-') as directory:
                     children.append(pid)
             peak = max(peak, footprint(process.pid) + sum(footprint(pid) for pid in children))
             for key, _ in selector.select(timeout=0.2):
-                line = key.fileobj.readline().strip()
-                if line.startswith('PEEL_'):
-                    print(line, flush=True)
-                    name, value = line.split('=', 1)
-                    metrics[name] = float(value)
-                    if name == 'PEEL_READY_MS':
-                        metrics['process_launch_to_ready_ms'] = (time.monotonic() - started) * 1000
-        for line in process.stdout:
-            if line.startswith('PEEL_'):
-                name, value = line.strip().split('=', 1)
-                metrics[name] = float(value)
+                pending += os.read(key.fileobj.fileno(), 65536)
+                while b'\n' in pending:
+                    line, pending = pending.split(b'\n', 1)
+                    consume(line)
+        pending += process.stdout.read()
+        for line in pending.splitlines():
+            consume(line)
         if process.returncode != 0:
             raise RuntimeError(f'Native benchmark exited with {process.returncode}')
         required = ['PEEL_READY_MS', 'PEEL_EDIT_DRAW_P95_MS', 'PEEL_IDLE_FOOTPRINT_BYTES', 'PEEL_CLOSED_FOOTPRINT_BYTES']

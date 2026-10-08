@@ -19,6 +19,7 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     )
     window.title = model.temporary ? "Peel — Scratch" : "Peel"
     window.isReleasedWhenClosed = false
+    window.contentMinSize = NSSize(width: model.temporary ? 920 : 900, height: 500)
     super.init(window: window)
     workspace.importFile = { [weak self] in self?.openFile() }
     workspace.exportFile = { [weak self] in self?.exportFile() }
@@ -126,9 +127,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   private var hotKey: GlobalHotKey?
   private var legacyFiles: [URL] = []
   private var terminationInProgress = false
+  private var selectionPreferenceKey = ""
   private let launchedAt = ProcessInfo.processInfo.systemUptime
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
+      print("PEEL_DID_FINISH_MS=\((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000)")
+      fflush(stdout)
+    }
     do {
       let support = FileManager.default.urls(
         for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -136,6 +142,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         ProcessInfo.processInfo.environment["PEEL_DATA_DIRECTORY"].map { URL(fileURLWithPath: $0) }
         ?? support.appendingPathComponent("PeelNative")
       store = try HistoryStore(url: directory.appendingPathComponent("history.sqlite"))
+      selectionPreferenceKey = "PeelNative.lastRecord:\(directory.standardizedFileURL.path)"
       if ProcessInfo.processInfo.environment["PEEL_SKIP_MIGRATION"] != "1" {
         legacyFiles = ["peeldesktop", "@peel/desktop", "Peel"].map {
           support.appendingPathComponent($0).appendingPathComponent("peel-data.json")
@@ -163,7 +170,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       mainWindow?.model.settings = settings
       for controller in scratchWindows.values { controller.model.settings = settings }
     }
-    guard model.temporary else { return }
+    if !model.temporary {
+      model.onSelectionChanged = { [weak self] id in
+        guard let self else { return }
+        UserDefaults.standard.set(id, forKey: self.selectionPreferenceKey)
+      }
+      return
+    }
     model.onSaved = { [weak self] in
       guard let model = self?.mainWindow?.model else { return }
       Task { await model.refresh() }
@@ -177,16 +190,32 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     let model = WorkspaceModel(store: store)
     connect(model)
     let controller = WorkspaceWindow(model: model)
+    if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
+      print("PEEL_CONSTRUCTED_MS=\((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000)")
+      fflush(stdout)
+    }
     controller.didClose = { [weak self] in self?.mainWindow = nil }
     mainWindow = controller
     controller.present()
+    if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
+      print("PEEL_PRESENTED_MS=\((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000)")
+      fflush(stdout)
+    }
     Task {
-      await model.bootstrap(legacyFiles: legacyFiles)
+      let bootstrapStart = ProcessInfo.processInfo.systemUptime
+      await model.bootstrap(
+        legacyFiles: legacyFiles,
+        preferredRecordID: UserDefaults.standard.string(forKey: selectionPreferenceKey))
+      let installedAt = ProcessInfo.processInfo.systemUptime
       mainWindow?.workspace.renderReady()
       if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
+        print("PEEL_BOOTSTRAP_MS=\((installedAt - bootstrapStart) * 1000)")
+        print(
+          "PEEL_INITIAL_RENDER_MS=\((ProcessInfo.processInfo.systemUptime - installedAt) * 1000)")
         print("PEEL_READY_MS=\(Int((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000))")
         fflush(stdout)
       }
+      if ProcessInfo.processInfo.environment["PEEL_STARTUP_ONLY"] == "1" { NSApp.terminate(nil) }
       if ProcessInfo.processInfo.environment["PEEL_BENCHMARK"] == "1" {
         Task { await self.benchmark() }
       }
@@ -197,7 +226,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       let unit = "  {\n    \"id\": 7,\n    \"name\": \"中文😀\",\n    \"active\": true\n  }"
       let text =
         "[\n"
-        + Array(repeating: unit, count: (1024 * 1024 - 4) / (unit.utf8.count + 2)).joined(
+        + Array(repeating: unit, count: (1024 * 1024 - 128) / (unit.utf8.count + 2)).joined(
           separator: ",\n") + "\n]"
       await mainWindow?.model.create(content: text, title: "1 MB benchmark")
       try await Task.sleep(for: .seconds(2))
@@ -221,7 +250,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   }
   @objc func newDocument(_ sender: Any?) {
     showMain(sender)
-    if let model = mainWindow?.model, model.ready { Task { await model.create() } }
+    guard let model = mainWindow?.model else { return }
+    Task {
+      while !model.ready { try? await Task.sleep(for: .milliseconds(10)) }
+      await model.create()
+    }
   }
   @objc func newScratch(_ sender: Any?) { createScratch("") }
   @objc func quickPaste() {
@@ -243,7 +276,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   }
   @objc func openFile(_ sender: Any?) {
     if activeWindow == nil { showMain(sender) }
-    activeWindow?.openFile()
+    guard let controller = activeWindow else { return }
+    Task {
+      while !controller.model.ready { try? await Task.sleep(for: .milliseconds(10)) }
+      controller.openFile()
+    }
   }
   @objc func exportFile(_ sender: Any?) { activeWindow?.exportFile() }
   @objc func format(_ sender: Any?) { activeWindow?.model.format(compact: false) }
