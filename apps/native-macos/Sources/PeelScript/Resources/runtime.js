@@ -1782,7 +1782,8 @@ var PeelRuntime = (() => {
     if (typeof value === "function") return { status: "success", text: `[Function${value.name ? ": " + value.name : ""}]`, structured: false };
     if (typeof value === "bigint") return { status: "success", text: String(value) + "n", structured: false };
     if (value === null || typeof value !== "object") return { status: "success", text: String(value), structured: false };
-    return { status: "success", text: JSON.stringify(value, null, 2), structured: true };
+    const text = JSON.stringify(value, null, 2);
+    return text === void 0 ? render(void 0) : { status: "success", text, structured: true };
   }
   function run(requestJSON) {
     const request = JSON.parse(requestJSON);
@@ -1796,10 +1797,11 @@ var PeelRuntime = (() => {
     } else {
       value = new Function("data", '"use strict"; return (' + query + ");")(data);
     }
-    Promise.resolve(value).then(
-      (value2) => peelComplete(JSON.stringify(render(value2))),
-      (error) => peelComplete(JSON.stringify({ status: "error", text: String(error.message || error), structured: false }))
-    );
+    Promise.resolve(value).then((value2) => render(value2)).then((result) => peelComplete(JSON.stringify(result))).catch((error) => peelComplete(JSON.stringify({
+      status: "error",
+      text: String(error?.message ?? error),
+      structured: false
+    })));
   }
   return __toCommonJS(runtime_entry_exports);
 })();

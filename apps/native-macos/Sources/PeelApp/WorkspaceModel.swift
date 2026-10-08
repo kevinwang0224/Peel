@@ -21,6 +21,7 @@ final class WorkspaceModel: ObservableObject {
   @Published var revealError = 0
   @Published var hasMore = false
   @Published var transitioning = false
+  @Published private(set) var ready = false
   let temporary: Bool
   let store: HistoryStore
   var onSettingsChanged: ((AppSettings) throws -> Void)?
@@ -51,6 +52,7 @@ final class WorkspaceModel: ObservableObject {
   }
 
   func bootstrap(legacyFiles: [URL]) async {
+    defer { ready = true }
     do {
       if !temporary {
         do { try await store.migrateLegacy(files: legacyFiles) } catch {
@@ -124,6 +126,7 @@ final class WorkspaceModel: ObservableObject {
     scheduleExtraction()
   }
   func edit(_ value: String) {
+    guard ready, !transitioning, record != nil else { return }
     text = value
     textRevision += 1
     changed()
@@ -131,15 +134,18 @@ final class WorkspaceModel: ObservableObject {
     scheduleExtraction()
   }
   func rename(_ value: String) {
+    guard ready, !transitioning, record != nil else { return }
     title = value
     changed()
   }
   func setMode(_ mode: ExtractionMode) {
+    guard ready, !transitioning, record != nil else { return }
     extraction.mode = mode
     changed()
     scheduleExtraction()
   }
   func setQuery(_ value: String) {
+    guard ready, !transitioning, record != nil else { return }
     extraction.queries[extraction.mode.rawValue] = value
     changed()
     scheduleExtraction()
@@ -158,7 +164,7 @@ final class WorkspaceModel: ObservableObject {
   func flush(commitTemporary: Bool = false) async -> Bool {
     guard dirty || (temporary && commitTemporary) else { return true }
     if temporary && !commitTemporary { return true }
-    guard var next = record else { return true }
+    guard var next = record else { return false }
     let version = revision
     next.content = text
     next.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -167,19 +173,19 @@ final class WorkspaceModel: ObservableObject {
     next.updatedAt = ISO8601DateFormatter().string(from: Date())
     do {
       try await store.save(next)
-      if version == revision {
-        record = next
-        dirty = false
-      }
+      guard version == revision else { return false }
+      record = next
+      dirty = false
       if !temporary { await refresh() }
       onSaved?()
-      return true
+      return !dirty
     } catch {
       self.error = error.localizedDescription
       return false
     }
   }
   func remove(_ id: String) async {
+    guard ready, !transitioning else { return }
     do {
       if selectedID == id {
         stopTasks()
@@ -196,6 +202,7 @@ final class WorkspaceModel: ObservableObject {
     } catch { self.error = error.localizedDescription }
   }
   func pin(_ id: String) async {
+    guard ready, !transitioning else { return }
     guard await flush() else { return }
     do {
       guard var value = try await store.record(id: id) else { return }
@@ -218,6 +225,7 @@ final class WorkspaceModel: ObservableObject {
     }
   }
   func format(compact: Bool) {
+    guard ready, !transitioning, record != nil else { return }
     let source = text
     let version = revision
     Task {

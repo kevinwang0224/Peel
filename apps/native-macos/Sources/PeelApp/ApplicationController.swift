@@ -35,6 +35,7 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
   }
   func windowShouldClose(_ sender: NSWindow) -> Bool {
     if mayClose { return true }
+    if !model.ready { return false }
     if closing { return false }
     if model.temporary && model.dirty {
       let alert = NSAlert()
@@ -50,10 +51,12 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
       }
     } else {
       closing = true
+      model.transitioning = true
       Task { [weak self] in
         guard let self else { return }
         // Keep the window alive if persistence fails, or edits arrive during the flush.
         if await model.flush(), !model.dirty || model.temporary { finishClose() }
+        model.transitioning = false
         closing = false
       }
     }
@@ -70,9 +73,14 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     window?.close()
   }
   func saveScratch() {
+    guard !closing, model.ready else { return }
+    closing = true
+    model.transitioning = true
     Task { [weak self] in
       guard let self else { return }
       if await model.flush(commitTemporary: true), !model.dirty { finishClose() }
+      model.transitioning = false
+      closing = false
     }
   }
   func openFile() {
@@ -155,6 +163,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       mainWindow?.model.settings = settings
       for controller in scratchWindows.values { controller.model.settings = settings }
     }
+    guard model.temporary else { return }
     model.onSaved = { [weak self] in
       guard let model = self?.mainWindow?.model else { return }
       Task { await model.refresh() }
@@ -173,6 +182,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     controller.present()
     Task {
       await model.bootstrap(legacyFiles: legacyFiles)
+      mainWindow?.workspace.renderReady()
       if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
         print("PEEL_READY_MS=\(Int((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000))")
         fflush(stdout)
@@ -211,7 +221,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   }
   @objc func newDocument(_ sender: Any?) {
     showMain(sender)
-    Task { await mainWindow?.model.create() }
+    if let model = mainWindow?.model, model.ready { Task { await model.create() } }
   }
   @objc func newScratch(_ sender: Any?) { createScratch("") }
   @objc func quickPaste() {
@@ -268,9 +278,16 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       if alert.runModal() == .alertFirstButtonReturn { return .terminateCancel }
       break
     }
+    guard let model = mainWindow?.model, model.dirty else {
+      mainWindow?.model.stopTasks()
+      for controller in scratchWindows.values { controller.model.stopTasks() }
+      return .terminateNow
+    }
     terminationInProgress = true
+    model.transitioning = true
     Task {
-      let saved = await mainWindow?.model.flush() ?? true
+      let saved = await model.flush() && !model.dirty
+      model.transitioning = false
       if saved {
         mainWindow?.model.stopTasks()
         for controller in scratchWindows.values { controller.model.stopTasks() }

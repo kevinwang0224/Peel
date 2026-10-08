@@ -18,6 +18,7 @@ extern const Lexilla::LexerModule lmCPP;
 
 @interface PeelEditorView (Selection)
 - (NSString *)selectedText;
+- (void)replaceSelectionWithText:(NSString *)text;
 @end
 @interface PeelContentView : SCIContentView
 @property(assign) PeelEditorView *peelOwner;
@@ -31,7 +32,7 @@ extern const Lexilla::LexerModule lmCPP;
     NSString *text = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
     if (!text) return;
     if (self.peelOwner.transformPaste) text = self.peelOwner.transformPaste(text);
-    [self insertText:text replacementRange:NSMakeRange(NSNotFound, 0)];
+    [self.peelOwner replaceSelectionWithText:text];
 }
 - (void)copy:(id)sender {
     NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
@@ -96,8 +97,20 @@ extern const Lexilla::LexerModule lmCPP;
     _editor.delegate = nil;
     ((PeelContentView *)_editor.content).peelOwner = nil;
 }
-- (NSString *)selectedText { return _editor.selectedString; }
-- (NSString *)text { return _editor.string ?: @""; }
+- (NSString *)selectedText {
+    const sptr_t length = [_editor message:SCI_GETSELTEXT];
+    if (length <= 1) return @"";
+    std::string buffer(length, '\0');
+    [_editor message:SCI_GETSELTEXT wParam:0 lParam:(sptr_t)buffer.data()];
+    return [[NSString alloc] initWithBytes:buffer.data() length:length - 1 encoding:NSUTF8StringEncoding] ?: @"";
+}
+- (NSString *)text {
+    const sptr_t length = [_editor message:SCI_GETLENGTH];
+    if (length == 0) return @"";
+    std::string buffer(length + 1, '\0');
+    [_editor message:SCI_GETTEXT wParam:length + 1 lParam:(sptr_t)buffer.data()];
+    return [[NSString alloc] initWithBytes:buffer.data() length:length encoding:NSUTF8StringEncoding] ?: @"";
+}
 - (void)setText:(NSString *)text {
     if ([self.text isEqualToString:text]) return;
     _updating = YES;
@@ -107,10 +120,20 @@ extern const Lexilla::LexerModule lmCPP;
     [_editor message:SCI_SETTARGETSTART wParam:0];
     [_editor message:SCI_SETTARGETEND wParam:[_editor message:SCI_GETLENGTH]];
     const char *utf8 = text.UTF8String;
-    [_editor message:SCI_REPLACETARGET wParam:strlen(utf8) lParam:(sptr_t)utf8];
+    [_editor message:SCI_REPLACETARGET wParam:[text lengthOfBytesUsingEncoding:NSUTF8StringEncoding] lParam:(sptr_t)utf8];
     [_editor message:SCI_ENDUNDOACTION];
     [_editor setEditable:!readOnly];
     _updating = NO;
+}
+- (void)replaceSelectionWithText:(NSString *)text {
+    if (![_editor isEditable]) return;
+    [_editor message:SCI_BEGINUNDOACTION];
+    [_editor message:SCI_TARGETFROMSELECTION];
+    const sptr_t start = [_editor message:SCI_GETTARGETSTART];
+    const NSUInteger length = [text lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+    [_editor message:SCI_REPLACETARGET wParam:length lParam:(sptr_t)text.UTF8String];
+    [_editor message:SCI_GOTOPOS wParam:start + length];
+    [_editor message:SCI_ENDUNDOACTION];
 }
 - (void)loadDocument:(NSString *)text {
     self.text = text;

@@ -264,10 +264,12 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
       ? nil : NSAppearance(named: model.settings.theme == "dark" ? .darkAqua : .aqua)
     let dark = view.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
     raw.configureLanguage(
-      "json", dark: dark, fontSize: model.settings.editorFontSize, readOnly: model.transitioning)
+      "json", dark: dark, fontSize: model.settings.editorFontSize,
+      readOnly: !model.ready || model.transitioning || model.selectedID == nil)
     expression.configureLanguage(
       model.extraction.mode == .javascript ? "javascript" : "plaintext", dark: dark,
-      fontSize: model.settings.editorFontSize, readOnly: model.transitioning)
+      fontSize: model.settings.editorFontSize,
+      readOnly: !model.ready || model.transitioning || model.selectedID == nil)
     if renderedDocument != model.selectedID ?? "" {
       renderedDocument = model.selectedID ?? ""
       raw.loadDocument(model.text)
@@ -291,6 +293,8 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
     raw.markError(
       atByte: model.issue?.byteOffset ?? -1, reveal: renderedReveal != model.revealError)
     renderedReveal = model.revealError
+    titleField.isEnabled = model.ready && !model.transitioning && model.selectedID != nil
+    mode.isEnabled = model.ready && !model.transitioning
     if titleField.stringValue != model.title { titleField.stringValue = model.title }
     mode.selectedSegment = model.extraction.mode == .javascript ? 0 : 1
     if let editor = resultEditor {
@@ -312,8 +316,10 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
       status.contentTintColor = .secondaryLabelColor
     }
     saved.stringValue =
-      model.temporary
-      ? (model.dirty ? "Unsaved scratch" : "Scratch") : (model.dirty ? "Saving…" : "Saved")
+      !model.ready
+      ? "Initializing…"
+      : model.temporary
+        ? (model.dirty ? "Unsaved scratch" : "Scratch") : (model.dirty ? "Saving…" : "Saved")
     // Reload row titles as well as IDs: renaming/pinning must update the sidebar.
     let signature = model.records.map { "\($0.id)|\($0.title)|\($0.pinned)" }
     if signature != renderedRecords {
@@ -371,7 +377,7 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
       model.searchChanged(searchField.stringValue)
     }
   }
-  @objc private func newRecord() { Task { await model.create() } }
+  @objc private func newRecord() { if model.ready { Task { await model.create() } } }
   @objc private func loadMore() { Task { await model.refresh(more: true) } }
   @objc private func pinRecord() {
     let index = table.clickedRow >= 0 ? table.clickedRow : table.selectedRow
@@ -410,6 +416,11 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
       showResult()
       render()
     }
+  }
+  func renderReady() {
+    render()
+    raw.focusEditor()
+    view.window?.displayIfNeeded()
   }
   func dismissFind() {
     findPanel?.close()

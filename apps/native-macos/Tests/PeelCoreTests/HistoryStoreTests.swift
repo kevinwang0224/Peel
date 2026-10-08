@@ -105,4 +105,13 @@ extension HistoryStoreTests {
     let retained = try await store.record(id: "a")
     XCTAssertNotNil(retained)
   }
+  func testNulCharactersInDraftAndTitleSurviveSaveAndReload() async throws {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = try HistoryStore(url: directory.appendingPathComponent("history.sqlite"))
+    let record = HistoryRecord(title: "before\u{0}after", content: "invalid\u{0}draft")
+    try await store.save(record)
+    let restored = try await store.record(id: record.id)
+    XCTAssertEqual(restored, record)
+  }
 }

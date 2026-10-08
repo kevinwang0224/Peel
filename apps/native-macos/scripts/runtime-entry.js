@@ -11,7 +11,8 @@ function render(value) {
   if (typeof value === 'function') return {status:'success', text:`[Function${value.name ? ': '+value.name : ''}]`, structured:false}
   if (typeof value === 'bigint') return {status:'success', text:String(value)+'n', structured:false}
   if (value === null || typeof value !== 'object') return {status:'success', text:String(value), structured:false}
-  return {status:'success', text:JSON.stringify(value,null,2), structured:true}
+  const text = JSON.stringify(value,null,2)
+  return text === undefined ? render(undefined) : {status:'success', text, structured:true}
 }
 export function run(requestJSON) {
   const request = JSON.parse(requestJSON)
@@ -25,8 +26,10 @@ export function run(requestJSON) {
   } else {
     value = new Function('data','"use strict"; return ('+query+');')(data)
   }
-  Promise.resolve(value).then(
-    value => peelComplete(JSON.stringify(render(value))),
-    error => peelComplete(JSON.stringify({status:'error',text:String(error.message || error),structured:false}))
-  )
+  Promise.resolve(value)
+    .then(value => render(value))
+    .then(result => peelComplete(JSON.stringify(result)))
+    .catch(error => peelComplete(JSON.stringify({
+      status:'error', text:String(error?.message ?? error), structured:false
+    })))
 }

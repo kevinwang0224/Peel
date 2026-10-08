@@ -33,8 +33,12 @@ public actor HistoryStore {
           sqlite3_result_null(context)
           return
         }
-        let folded = String(cString: raw).lowercased()
-        folded.withCString { sqlite3_result_text(context, $0, -1, sqliteTransient) }
+        let bytes = UnsafeBufferPointer(start: raw, count: Int(sqlite3_value_bytes(value)))
+        let folded = String(decoding: bytes, as: UTF8.self).lowercased()
+        folded.withCString {
+          sqlite3_result_text64(
+            context, $0, UInt64(folded.utf8.count), sqliteTransient, UInt8(SQLITE_UTF8))
+        }
       }, nil, nil, nil)
     let schema = """
       PRAGMA journal_mode=WAL;
@@ -210,10 +214,16 @@ public actor HistoryStore {
     guard sqlite3_exec(database, sql, nil, nil, nil) == SQLITE_OK else { throw failure() }
   }
   private func bind(_ value: String, to statement: OpaquePointer, at index: Int32) {
-    value.withCString { _ = sqlite3_bind_text(statement, index, $0, -1, sqliteTransient) }
+    value.withCString {
+      _ = sqlite3_bind_text64(
+        statement, index, $0, UInt64(value.utf8.count), sqliteTransient, UInt8(SQLITE_UTF8))
+    }
   }
   private func text(_ statement: OpaquePointer, _ column: Int32) -> String {
-    String(cString: sqlite3_column_text(statement, column))
+    String(
+      decoding: UnsafeBufferPointer(
+        start: sqlite3_column_text(statement, column),
+        count: Int(sqlite3_column_bytes(statement, column))), as: UTF8.self)
   }
   private func next(_ statement: OpaquePointer) throws -> Bool {
     let status = sqlite3_step(statement)
