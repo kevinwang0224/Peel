@@ -6,11 +6,16 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:desktop": "npm run dev -w @peel/desktop",
+    "dev:desktop": "npm run dev:native",
     "build:shared": "npm run build -w @peel/shared",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run native:build",
+    "native:build": "bash apps/native-macos/scripts/build.sh",
+    "native:test": "bash apps/native-macos/scripts/test.sh",
+    "dev:native": "npm run native:build && open \"apps/native-macos/build/Peel Native.app\"",
+    "dev:electron": "npm run dev -w @peel/desktop",
+    "build:electron": "npm run build -w @peel/desktop"
   }
 }

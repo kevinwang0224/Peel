@@ -2,7 +2,18 @@
 
 [English README](README.md)
 
-**Peel** 是一款轻量级的 **JSON 格式化与编辑**工具，追求启动快、界面简洁：在 Monaco 中编辑原始 JSON，用 JavaScript 或 JSONPath 做提取，并用可搜索的历史记录管理多份内容，数据在本地持久化。
+**Peel** 是一款 JSON 格式化与编辑工具。当前主线新增原生 macOS 版本，使用 Swift、AppKit、Scintilla Cocoa、SQLite 和独立 JavaScriptCore 提取进程，面向低内存和快速启动；旧 Electron 工作区保留用于迁移对照。
+
+原生版构建与运行：
+
+```bash
+bash apps/native-macos/scripts/build.sh
+open "apps/native-macos/build/Peel Native.app"
+```
+
+要求 macOS 14+、Apple Silicon 和 Xcode。原生运行不需要 Electron、WebView 或 Node；原生构建也可直接使用仓库内的 JS bundle。详见 [原生版本说明](apps/native-macos/README.md)。
+
+下文保留旧 Electron 版本说明；启动旧版使用 `npm run dev:electron`。
 
 ## 功能概览
 
@@ -40,7 +51,7 @@ npm install
 ### 开发运行桌面端
 
 ```bash
-npm run dev:desktop
+npm run dev:electron
 ```
 
 将启动 `@peel/desktop` 工作区（electron-vite）。
@@ -53,7 +64,8 @@ npm run dev:desktop
 | `npm run lint` | 为各子包运行 lint（若定义了 `lint`） |
 | `npm run test` | 在各子包运行测试 |
 | `npm run typecheck` | 各子包类型检查 |
-| `npm run build` | 构建各子包（有实现时） |
+| `npm run build` | 构建原生 macOS 应用 |
+| `npm run native:test` | 运行原生核心行为测试 |
 
 ### 仅桌面端
 

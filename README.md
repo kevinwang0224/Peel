@@ -1,5 +1,14 @@
 # Peel
 
+The primary desktop implementation now includes a native macOS app using Swift, AppKit, Scintilla Cocoa, SQLite and a disposable JavaScriptCore helper. It targets macOS 14+ on Apple Silicon and runs without Electron, WebView or Node. See [native build, migration and verification instructions](apps/native-macos/README.md).
+
+```bash
+bash apps/native-macos/scripts/build.sh
+open "apps/native-macos/build/Peel Native.app"
+```
+
+The previous Electron workspace remains as a migration reference. The instructions below describe that version; use `npm run dev:electron` to launch it. `npm run build` now builds the native app.
+
 [中文说明](README_zh.md)
 
 **Peel** is a lightweight JSON formatter and editor. The goal is a fast, minimal app with a clean interface: edit raw JSON in Monaco, run extractions with JavaScript or JSONPath, and keep a searchable history of documents—all with local storage.
@@ -40,7 +49,7 @@ npm install
 ### Run the desktop app (development)
 
 ```bash
-npm run dev:desktop
+npm run dev:electron
 ```
 
 This runs the `@peel/desktop` workspace with electron-vite.

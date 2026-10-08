@@ -20,3 +20,8 @@ DerivedData/
 **/*.xcscmblueprint
 logo_v2.png
 AGENTS.local.md
+
+# Native macOS dependencies and build products
+apps/native-macos/Dependencies/
+apps/native-macos/.build/
+apps/native-macos/build/
