@@ -43,6 +43,8 @@ Swift Debug/Release 编译、20 个原生核心测试、Swift format 检查与�
 
 Done: result pane as a native `.inspector` with a draggable result/expression split; segmented `JS | JSONPath`; pane headings removed in favour of one status bar per pane (summary + `Ln/Col`); window subtitle (root type · keys · size) and `isDocumentEdited` for dirty scratch; `.unified` toolbar with sidebar/inspector tracking separators; date-grouped sidebar with `ContentUnavailableView` empty states and ⌫ delete; one-row find bar with match count, Aa/W/.* options, expandable replace, ⌘G/⇧⌘G/⌘E/⌥⌘F; ⌘L go to line; ⌥⌘←/→ collapse/expand all; `.json` drag-and-drop; SF Mono, inactive selection colour, system-red errors with inline annotation, live system-colour updates, adaptive line-number gutter; click-to-record shortcut control in Settings; Window menu Zoom / Bring All to Front.
 
-Not done yet: instant-apply Settings without Save/Cancel (needs a new failure/quit protection design), Settings tab toolbar, ⌘1/2/3 pane focus, double-click rename in the sidebar, auto-load-more on scroll, Liquid Glass `NSToolbarItem.style`.
+Second batch: Settings apply immediately (serialized writes; a failed write alerts and rolls the controls back; close/quit stay blocked while a write is in flight); ⌘1/2/3 focus Source/Expression/Result (reveals the inspector if hidden); double-click or context-menu Rename in the sidebar; history loads the next page when the end of the list scrolls into view; whole-window dimming reduced to the editor area while a record is switching; Run uses `NSToolbarItem.style = .prominent` on macOS 26+.
 
-Benchmark after the pass (release, 1 000 records × 10 KB): ready 429 ms, edit P95 6.4 ms, idle footprint 88.8 MB, closed footprint 82.0 MB — no regression against the previous baseline.
+Not done yet: Settings tab toolbar (single form kept), compact Scratch window, improved error wording.
+
+Benchmark after batch two (release, 1 000 × 10 KB, three runs): ready 461–1833 ms (machine under load, high variance), edit-draw P95 7.2–8.5 ms, idle footprint 91–107 MB.

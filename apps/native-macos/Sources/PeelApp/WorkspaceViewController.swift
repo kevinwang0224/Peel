@@ -35,6 +35,7 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     super.init(rootView: WorkspaceView(model: model, presentation: presentation, actions: actions))
     sizingOptions = []
     sceneBridgingOptions = [.title]
+    actions.renameCurrent = { [weak self] in self?.showRename() }
     actions.deleteRecord = { [weak self] id in self?.confirmDelete(id) }
     presentation.openURL = { [weak self] url in self?.actions.openURL?(url) }
   }
@@ -88,6 +89,9 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     presentation.gotoText = ""
     presentation.gotoVisible = true
   }
+  @objc func focusSource() { presentation.focusPane(.source) }
+  @objc func focusExpression() { presentation.focusPane(.expression) }
+  @objc func focusResult() { presentation.focusPane(.result) }
   @objc func foldAll() { presentation.fold(contract: true) }
   @objc func unfoldAll() { presentation.fold(contract: false) }
   func showRename() {

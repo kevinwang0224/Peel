@@ -336,6 +336,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   @objc func findPrevious(_ sender: Any?) { activeWindow?.workspace.findPrevious() }
   @objc func useSelectionForFind(_ sender: Any?) { activeWindow?.workspace.useSelectionForFind() }
   @objc func goToLine(_ sender: Any?) { activeWindow?.workspace.showGoToLine() }
+  @objc func focusSource(_ sender: Any?) { activeWindow?.workspace.focusSource() }
+  @objc func focusExpression(_ sender: Any?) { activeWindow?.workspace.focusExpression() }
+  @objc func focusResult(_ sender: Any?) { activeWindow?.workspace.focusResult() }
   @objc func foldAll(_ sender: Any?) { activeWindow?.workspace.foldAll() }
   @objc func unfoldAll(_ sender: Any?) { activeWindow?.workspace.unfoldAll() }
   @objc func rename(_ sender: Any?) { activeWindow?.workspace.showRename() }
@@ -488,6 +491,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         "Show / Hide Sidebar", #selector(toggleSidebar(_:)), key: "s",
         modifiers: [.command, .control]))
     view.addItem(item("Show / Hide Extraction", #selector(toggleExtraction(_:))))
+    view.addItem(.separator())
+    view.addItem(item("Focus Source", #selector(focusSource(_:)), key: "1"))
+    view.addItem(item("Focus Expression", #selector(focusExpression(_:)), key: "2"))
+    view.addItem(item("Focus Result", #selector(focusResult(_:)), key: "3"))
     view.addItem(.separator())
     view.addItem(
       item("Collapse All", #selector(foldAll(_:)), key: "\u{F702}", modifiers: [.command, .option]))

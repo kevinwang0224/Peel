@@ -49,6 +49,30 @@ final class WorkspacePresentation: ObservableObject {
   func focus(_ role: EditorRole) {
     if focusedRole != role { focusedRole = role }
   }
+  /// ⌘1 / ⌘2 / ⌘3: reveal the pane if needed, then move the caret into it.
+  func focusPane(_ role: EditorRole) {
+    if role != .source, !resultVisible { resultVisible = true }
+    focus(role)
+    let coordinator: NativeEditor.Coordinator? =
+      switch role {
+      case .source: source
+      case .expression: expression
+      case .result: result
+      }
+    if let editor = coordinator?.editor {
+      editor.focusEditor()
+    } else {
+      // The inspector was just inserted; wait one layout pass for its editor.
+      Task { @MainActor [weak self] in
+        try? await Task.sleep(for: .milliseconds(60))
+        switch role {
+        case .source: self?.source?.editor?.focusEditor()
+        case .expression: self?.expression?.editor?.focusEditor()
+        case .result: self?.result?.editor?.focusEditor()
+        }
+      }
+    }
+  }
   func toggleSidebar() {
     columns = columns == .detailOnly ? .all : .detailOnly
   }
@@ -139,4 +163,5 @@ final class WorkspaceActions {
   var presentSettings: (() -> Void)?
   var deleteRecord: ((String) -> Void)?
   var openURL: ((URL) -> Void)?
+  var renameCurrent: (() -> Void)?
 }

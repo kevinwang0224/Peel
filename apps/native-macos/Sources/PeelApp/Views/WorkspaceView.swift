@@ -24,11 +24,13 @@ struct WorkspaceView: View {
     Group {
       if model.temporary {
         WorkspaceDetail(model: model, presentation: presentation)
+          .disabled(!model.ready || model.transitioning)
       } else {
         NavigationSplitView(columnVisibility: $presentation.columns) {
           HistorySidebar(model: model, actions: actions)
         } detail: {
           WorkspaceDetail(model: model, presentation: presentation)
+            .disabled(!model.ready || model.transitioning)
         }
         .navigationSplitViewStyle(.balanced)
       }
@@ -36,7 +38,6 @@ struct WorkspaceView: View {
     .toolbar(removing: .sidebarToggle)
     .navigationTitle(title)
     .navigationSubtitle(subtitle)
-    .disabled(!model.ready || model.transitioning)
     .alert("Rename JSON", isPresented: $presentation.renameVisible) {
       TextField("Title", text: $presentation.renameText)
       Button("Cancel", role: .cancel) {}

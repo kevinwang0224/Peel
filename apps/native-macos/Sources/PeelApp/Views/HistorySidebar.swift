@@ -22,6 +22,16 @@ struct HistorySidebar: View {
       ForEach(HistoryGrouping.sections(model.records)) { section in
         Section(section.group.title) { records(section.records) }
       }
+      if model.hasMore {
+        // Sentinel row: reaching the bottom of the list loads the next page.
+        HStack {
+          Spacer()
+          ProgressView().controlSize(.small)
+          Spacer()
+        }
+        .listRowSeparator(.hidden)
+        .onAppear { Task { await model.refresh(more: true) } }
+      }
     }
     .listStyle(.sidebar)
     .onDeleteCommand {
@@ -38,19 +48,28 @@ struct HistorySidebar: View {
         }
       }
     }
-    .safeAreaInset(edge: .bottom) {
-      if model.hasMore {
-        Button("Load more history") { Task { await model.refresh(more: true) } }
-          .buttonStyle(.borderless).font(.caption).padding(10)
-      }
-    }
-    .disabled(!model.ready || model.transitioning)
+    .disabled(!model.ready)
     .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 320)
   }
   private func records(_ values: [HistorySummary]) -> some View {
     ForEach(values) { record in
       HistoryRow(record: record).tag(record.id)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+          TapGesture(count: 2).onEnded {
+            Task {
+              await model.select(record.id)
+              actions.renameCurrent?()
+            }
+          }
+        )
         .contextMenu {
+          Button("Rename…", systemImage: "pencil") {
+            Task {
+              await model.select(record.id)
+              actions.renameCurrent?()
+            }
+          }
           Button(record.pinned ? "Unpin" : "Pin", systemImage: record.pinned ? "pin.slash" : "pin")
           {
             Task { await model.pin(record.id) }

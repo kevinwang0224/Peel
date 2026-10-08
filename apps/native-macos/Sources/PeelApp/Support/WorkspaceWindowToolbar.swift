@@ -110,6 +110,9 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     item.action = action.selector
     item.visibilityPriority = .high
     item.isNavigational = action.navigational
+    if #available(macOS 26.0, *), identifier.rawValue == "run" {
+      item.style = .prominent
+    }
     return item
   }
 }

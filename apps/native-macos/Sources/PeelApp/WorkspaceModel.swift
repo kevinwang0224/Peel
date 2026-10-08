@@ -81,7 +81,13 @@ final class WorkspaceModel {
       }
     } catch { self.error = error.localizedDescription }
   }
+  @ObservationIgnored private var loadingMore = false
   func refresh(more: Bool = false) async {
+    if more {
+      guard !loadingMore else { return }
+      loadingMore = true
+    }
+    defer { if more { loadingMore = false } }
     let expected = search
     do {
       let offset = more ? records.count : 0
