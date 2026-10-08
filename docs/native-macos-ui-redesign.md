@@ -38,3 +38,11 @@ Swift Debug/Release 编译、20 个原生核心测试、Swift format 检查与�
 ## Spec
 
 复审最初发现多个工作台设置窗口可互相覆盖，以及初始化/保存期间的设置生命周期问题。已改为应用级唯一窗口并补齐保护；最终复核通过，无未解决发现。
+
+## Native polish pass (2026-10)
+
+Done: result pane as a native `.inspector` with a draggable result/expression split; segmented `JS | JSONPath`; pane headings removed in favour of one status bar per pane (summary + `Ln/Col`); window subtitle (root type · keys · size) and `isDocumentEdited` for dirty scratch; `.unified` toolbar with sidebar/inspector tracking separators; date-grouped sidebar with `ContentUnavailableView` empty states and ⌫ delete; one-row find bar with match count, Aa/W/.* options, expandable replace, ⌘G/⇧⌘G/⌘E/⌥⌘F; ⌘L go to line; ⌥⌘←/→ collapse/expand all; `.json` drag-and-drop; SF Mono, inactive selection colour, system-red errors with inline annotation, live system-colour updates, adaptive line-number gutter; click-to-record shortcut control in Settings; Window menu Zoom / Bring All to Front.
+
+Not done yet: instant-apply Settings without Save/Cancel (needs a new failure/quit protection design), Settings tab toolbar, ⌘1/2/3 pane focus, double-click rename in the sidebar, auto-load-more on scroll, Liquid Glass `NSToolbarItem.style`.
+
+Benchmark after the pass (release, 1 000 records × 10 KB): ready 429 ms, edit P95 6.4 ms, idle footprint 88.8 MB, closed footprint 82.0 MB — no regression against the previous baseline.
