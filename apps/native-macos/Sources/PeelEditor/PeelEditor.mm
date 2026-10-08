@@ -16,6 +16,16 @@ uint64_t PeelPhysicalFootprint(void) {
 extern const Lexilla::LexerModule lmJSON;
 extern const Lexilla::LexerModule lmCPP;
 
+// Scintilla stores opaque RGB: resolve AppKit's alpha-based label colors against the editor surface.
+static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
+    NSColor *rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    NSColor *base = [background colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    CGFloat alpha = rgb.alphaComponent;
+    return [NSColor colorWithSRGBRed:rgb.redComponent * alpha + base.redComponent * (1 - alpha)
+                             green:rgb.greenComponent * alpha + base.greenComponent * (1 - alpha)
+                              blue:rgb.blueComponent * alpha + base.blueComponent * (1 - alpha) alpha:1];
+}
+
 @interface PeelEditorView (Selection)
 - (NSString *)selectedText;
 - (void)replaceSelectionWithText:(NSString *)text;
@@ -72,19 +82,23 @@ extern const Lexilla::LexerModule lmCPP;
         [self addSubview:_editor];
         [_editor message:SCI_SETCODEPAGE wParam:SC_CP_UTF8];
         [_editor message:SCI_SETMARGINTYPEN wParam:0 lParam:SC_MARGIN_NUMBER];
-        [_editor message:SCI_SETMARGINWIDTHN wParam:0 lParam:52];
+        [_editor message:SCI_SETMARGINWIDTHN wParam:0 lParam:42];
         [_editor message:SCI_SETMARGINTYPEN wParam:1 lParam:SC_MARGIN_SYMBOL];
         [_editor message:SCI_SETMARGINMASKN wParam:1 lParam:SC_MASK_FOLDERS];
         [_editor message:SCI_SETMARGINWIDTHN wParam:1 lParam:16];
         [_editor message:SCI_SETMARGINSENSITIVEN wParam:1 lParam:1];
-        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEREND lParam:SC_MARK_BOXPLUSCONNECTED];
-        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEROPENMID lParam:SC_MARK_BOXMINUSCONNECTED];
-        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERMIDTAIL lParam:SC_MARK_TCORNER];
-        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERTAIL lParam:SC_MARK_LCORNER];
-        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERSUB lParam:SC_MARK_VLINE];
-        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDER lParam:SC_MARK_BOXPLUS];
-        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEROPEN lParam:SC_MARK_BOXMINUS];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEREND lParam:SC_MARK_ARROW];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEROPENMID lParam:SC_MARK_ARROWDOWN];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERMIDTAIL lParam:SC_MARK_EMPTY];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERTAIL lParam:SC_MARK_EMPTY];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERSUB lParam:SC_MARK_EMPTY];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDER lParam:SC_MARK_ARROW];
+        [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEROPEN lParam:SC_MARK_ARROWDOWN];
         [_editor message:SCI_SETAUTOMATICFOLD wParam:SC_AUTOMATICFOLD_SHOW | SC_AUTOMATICFOLD_CLICK | SC_AUTOMATICFOLD_CHANGE];
+        [_editor message:SCI_SETMARGINLEFT wParam:0 lParam:8];
+        [_editor message:SCI_SETMARGINRIGHT wParam:0 lParam:12];
+        [_editor message:SCI_SETEXTRAASCENT wParam:2];
+        [_editor message:SCI_SETEXTRADESCENT wParam:2];
         [_editor message:SCI_SETINDENT wParam:2];
         [_editor message:SCI_SETTABWIDTH wParam:2];
         [_editor message:SCI_SETUSETABS wParam:0];
@@ -163,21 +177,33 @@ extern const Lexilla::LexerModule lmCPP;
         [_editor setLexerProperty:@"lexer.json.allow.comments" value:@"0"];
         [_editor message:SCI_SETKEYWORDS wParam:0 lParam:(sptr_t)"true false null undefined const let var return async await function new data"];
     }
-    NSColor *background = dark ? [NSColor colorWithWhite:0.11 alpha:1] : [NSColor textBackgroundColor];
-    NSColor *foreground = dark ? [NSColor colorWithWhite:0.9 alpha:1] : [NSColor textColor];
-    [_editor setFontName:@"Menlo" size:(int)fontSize bold:NO italic:NO];
-    [_editor setColorProperty:SCI_STYLESETFORE parameter:STYLE_DEFAULT value:foreground];
-    [_editor setColorProperty:SCI_STYLESETBACK parameter:STYLE_DEFAULT value:background];
-    [_editor message:SCI_STYLECLEARALL];
-    [_editor setColorProperty:SCI_STYLESETFORE parameter:STYLE_LINENUMBER value:[NSColor secondaryLabelColor]];
-    [_editor setColorProperty:SCI_STYLESETBACK parameter:STYLE_LINENUMBER value:background];
-    [_editor setColorProperty:SCI_SETCARETFORE parameter:0 value:foreground];
-    [_editor setColorProperty:SCI_SETSELBACK parameter:1 value:[NSColor selectedTextBackgroundColor]];
-    BOOL json = [language isEqualToString:@"json"];
-    for (int style : {json ? SCE_JSON_STRING : SCE_C_STRING, json ? SCE_JSON_PROPERTYNAME : SCE_C_CHARACTER})
-        [_editor setColorProperty:SCI_STYLESETFORE parameter:style value:dark ? [NSColor systemOrangeColor] : [NSColor systemRedColor]];
-    [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_NUMBER : SCE_C_NUMBER value:[NSColor systemBlueColor]];
-    [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_KEYWORD : SCE_C_WORD value:[NSColor systemPurpleColor]];
+    NSAppearance *appearance = [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
+    [appearance performAsCurrentDrawingAppearance:^{
+        NSColor *background = [NSColor textBackgroundColor];
+        NSColor *foreground = [NSColor textColor];
+        [_editor setFontName:@"Menlo" size:(int)fontSize bold:NO italic:NO];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:STYLE_DEFAULT value:foreground];
+        [_editor setColorProperty:SCI_STYLESETBACK parameter:STYLE_DEFAULT value:background];
+        [_editor message:SCI_STYLECLEARALL];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:STYLE_LINENUMBER value:PeelOpaqueColor([NSColor secondaryLabelColor], background)];
+        [_editor setColorProperty:SCI_STYLESETBACK parameter:STYLE_LINENUMBER value:background];
+        [_editor setColorProperty:SCI_SETFOLDMARGINCOLOUR parameter:1 value:background];
+        [_editor setColorProperty:SCI_SETFOLDMARGINHICOLOUR parameter:1 value:background];
+        for (int marker = SC_MARKNUM_FOLDEREND; marker <= SC_MARKNUM_FOLDEROPEN; marker++) {
+            [_editor setColorProperty:SCI_MARKERSETFORE parameter:marker value:PeelOpaqueColor([NSColor tertiaryLabelColor], background)];
+            [_editor setColorProperty:SCI_MARKERSETBACK parameter:marker value:background];
+        }
+        [_editor setColorProperty:SCI_SETCARETFORE parameter:0 value:foreground];
+        [_editor setColorProperty:SCI_SETSELBACK parameter:1 value:[NSColor selectedTextBackgroundColor]];
+        [_editor message:SCI_SETCARETLINEVISIBLE wParam:1];
+        [_editor setColorProperty:SCI_SETCARETLINEBACK parameter:0 value:[NSColor quaternaryLabelColor]];
+        [_editor message:SCI_SETCARETLINEBACKALPHA wParam:18];
+        BOOL json = [language isEqualToString:@"json"];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_STRING : SCE_C_STRING value:dark ? [NSColor colorWithSRGBRed:0.55 green:0.77 blue:0.65 alpha:1] : [NSColor colorWithSRGBRed:0.20 green:0.43 blue:0.34 alpha:1]];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_PROPERTYNAME : SCE_C_CHARACTER value:dark ? [NSColor colorWithSRGBRed:0.55 green:0.70 blue:0.91 alpha:1] : [NSColor colorWithSRGBRed:0.22 green:0.37 blue:0.57 alpha:1]];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_NUMBER : SCE_C_NUMBER value:dark ? [NSColor colorWithSRGBRed:0.87 green:0.69 blue:0.46 alpha:1] : [NSColor colorWithSRGBRed:0.58 green:0.37 blue:0.18 alpha:1]];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_KEYWORD : SCE_C_WORD value:dark ? [NSColor colorWithSRGBRed:0.76 green:0.61 blue:0.86 alpha:1] : [NSColor colorWithSRGBRed:0.48 green:0.31 blue:0.59 alpha:1]];
+    }];
     [_editor setEditable:!readOnly];
 }
 - (void)markErrorAtByte:(NSInteger)offset reveal:(BOOL)reveal {

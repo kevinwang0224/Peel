@@ -2,6 +2,8 @@
 
 日期：2026-10-08。原生版位于 `apps/native-macos`，默认 `npm run dev:desktop` 和 `npm run build` 已切换到原生版本。
 
+后续界面与性能回归见[原生界面改造](native-macos-ui-redesign.md)。下方记录首版实施时的测试范围与基准。
+
 ## 已完成
 
 - Swift + AppKit 工作台，Scintilla Cocoa 编辑器及 Lexilla JSON/JavaScript 高亮；原生窗口、菜单、文件对话框、剪贴板、全局热键和菜单栏入口。

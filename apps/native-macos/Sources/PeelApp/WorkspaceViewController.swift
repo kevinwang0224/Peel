@@ -11,6 +11,7 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   var importFile: (() -> Void)?
   var exportFile: (() -> Void)?
   var saveTemporary: (() -> Void)?
+  var presentSettings: (() -> Void)?
   private let titleField = NSTextField()
   private let searchField = NSSearchField()
   private let table = NSTableView()
@@ -22,10 +23,16 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   private let expression = PeelEditorView(frame: .zero)
   private var resultEditor: PeelEditorView?
   private let resultTitle = NSTextField(labelWithString: "Result")
+  private let resultState = NSTextField(labelWithString: "Read only")
+  private let extractionHint = NSTextField(labelWithString: "Runs automatically after editing")
+  private let runButton = NSButton()
+  private let loadMoreButton = NSButton()
+  private var toolbarCoordinator: WorkspaceToolbar?
   private let documentSplit = NSSplitView()
   private let workspaceSplit = NSSplitView()
   private var needsInitialSplitLayout = true
   private var resultPane: NSView?
+  private var resultSplitFraction: CGFloat = 0.55
   private let findField = NSSearchField()
   private let replaceField = NSTextField()
   private var findPanel: NSPanel?
@@ -49,67 +56,71 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   required init?(coder: NSCoder) { fatalError("Not supported") }
   override func loadView() {
     view = NSView(frame: NSRect(x: 0, y: 0, width: 1280, height: 820))
-    let toolbar = NSStackView()
-    toolbar.orientation = .horizontal
-    toolbar.spacing = 10
-    let logo = NSTextField(labelWithString: "{ }")
-    logo.font = .monospacedSystemFont(ofSize: 23, weight: .medium)
-    logo.textColor = .controlAccentColor
-    titleField.placeholderString = "Title"
-    titleField.font = .systemFont(ofSize: 15, weight: .semibold)
+    titleField.placeholderString = "Untitled"
+    titleField.font = .systemFont(ofSize: 17, weight: .semibold)
     titleField.isBordered = false
     titleField.drawsBackground = false
     titleField.delegate = self
-    titleField.widthAnchor.constraint(greaterThanOrEqualToConstant: 140).isActive = true
-    titleField.widthAnchor.constraint(lessThanOrEqualToConstant: 300).isActive = true
-    for item in [
-      logo, titleField, spacer(), button("Open", #selector(open)),
-      button("Export", #selector(export)), button("Format", #selector(format)),
-      button("Compact", #selector(compact)), button("Result", #selector(toggleResult)),
-      button("Settings", #selector(showSettings)),
-    ] { toolbar.addArrangedSubview(item) }
-    if model.temporary {
-      toolbar.addArrangedSubview(button("Save to History", #selector(commitScratch)))
-    }
-    view.addSubview(toolbar)
-    toolbar.translatesAutoresizingMaskIntoConstraints = false
+    titleField.lineBreakMode = .byTruncatingTail
+    titleField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    saved.font = .systemFont(ofSize: 11)
+    saved.textColor = .secondaryLabelColor
 
     let workspace = workspaceSplit
     workspace.isVertical = true
     workspace.dividerStyle = .thin
     if !model.temporary { workspace.addArrangedSubview(makeSidebar()) }
     let detail = NSView()
+    let documentHeader = WorkspaceChrome.header(
+      [
+        WorkspaceChrome.symbol("curlybraces", size: 18), titleField, spacer(), saved,
+      ], height: 58)
+    detail.addSubview(documentHeader)
+    documentHeader.translatesAutoresizingMaskIntoConstraints = false
     documentSplit.isVertical = true
     documentSplit.dividerStyle = .thin
-    documentSplit.addArrangedSubview(editorPane("JSON", editor: raw))
+    documentSplit.addArrangedSubview(editorPane("Source", editor: raw))
     showResult()
     detail.addSubview(documentSplit)
     documentSplit.translatesAutoresizingMaskIntoConstraints = false
-    let controls = NSStackView()
-    controls.orientation = .horizontal
-    controls.spacing = 10
-    controls.addArrangedSubview(NSTextField(labelWithString: "Extraction"))
     mode.target = self
     mode.action = #selector(extractionModeChanged(_:))
-    controls.addArrangedSubview(mode)
-    controls.addArrangedSubview(spacer())
-    controls.addArrangedSubview(button("Run  ⌘↵", #selector(run)))
+    mode.controlSize = .small
+    mode.segmentStyle = .rounded
+    let extractionLabel = WorkspaceChrome.label("Extraction", weight: .semibold)
+    runButton.title = "Run"
+    runButton.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: nil)
+    runButton.imagePosition = .imageLeading
+    runButton.bezelStyle = .rounded
+    runButton.controlSize = .small
+    runButton.target = self
+    runButton.action = #selector(run)
+    runButton.toolTip = "Run extraction (⌘Return)"
+    extractionHint.font = .systemFont(ofSize: 11)
+    extractionHint.textColor = .tertiaryLabelColor
+    let controls = WorkspaceChrome.header(
+      [
+        WorkspaceChrome.symbol("line.3.horizontal.decrease", size: 13), extractionLabel, mode,
+        spacer(), extractionHint, runButton,
+      ], height: 40)
     detail.addSubview(controls)
     detail.addSubview(expression)
     controls.translatesAutoresizingMaskIntoConstraints = false
     expression.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      documentSplit.topAnchor.constraint(equalTo: detail.topAnchor),
+      documentHeader.topAnchor.constraint(equalTo: detail.topAnchor),
+      documentHeader.leadingAnchor.constraint(equalTo: detail.leadingAnchor),
+      documentHeader.trailingAnchor.constraint(equalTo: detail.trailingAnchor),
+      documentSplit.topAnchor.constraint(equalTo: documentHeader.bottomAnchor),
       documentSplit.leadingAnchor.constraint(equalTo: detail.leadingAnchor),
       documentSplit.trailingAnchor.constraint(equalTo: detail.trailingAnchor),
-      documentSplit.bottomAnchor.constraint(equalTo: controls.topAnchor, constant: -4),
-      controls.leadingAnchor.constraint(equalTo: detail.leadingAnchor, constant: 12),
-      controls.trailingAnchor.constraint(equalTo: detail.trailingAnchor, constant: -12),
-      controls.heightAnchor.constraint(equalToConstant: 32),
-      controls.bottomAnchor.constraint(equalTo: expression.topAnchor, constant: -4),
+      documentSplit.bottomAnchor.constraint(equalTo: controls.topAnchor),
+      controls.leadingAnchor.constraint(equalTo: detail.leadingAnchor),
+      controls.trailingAnchor.constraint(equalTo: detail.trailingAnchor),
+      controls.bottomAnchor.constraint(equalTo: expression.topAnchor),
       expression.leadingAnchor.constraint(equalTo: detail.leadingAnchor),
       expression.trailingAnchor.constraint(equalTo: detail.trailingAnchor),
-      expression.heightAnchor.constraint(equalToConstant: 110),
+      expression.heightAnchor.constraint(equalToConstant: 96),
       expression.bottomAnchor.constraint(equalTo: detail.bottomAnchor),
     ])
     workspace.addArrangedSubview(detail)
@@ -122,29 +133,21 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
     status.alignment = .left
     status.target = self
     status.action = #selector(revealIssue)
-    saved.font = .systemFont(ofSize: 11)
-    saved.textColor = .secondaryLabelColor
-    view.addSubview(status)
-    view.addSubview(saved)
-    status.translatesAutoresizingMaskIntoConstraints = false
-    saved.translatesAutoresizingMaskIntoConstraints = false
+    status.font = .systemFont(ofSize: 11)
+    status.lineBreakMode = .byTruncatingTail
+    let footer = WorkspaceChrome.header([status, spacer()], height: 28)
+    view.addSubview(footer)
+    footer.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      toolbar.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
-      toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-      toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-      toolbar.heightAnchor.constraint(equalToConstant: 30),
-      workspace.topAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: 12),
+      workspace.topAnchor.constraint(equalTo: view.topAnchor),
       workspace.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       workspace.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      workspace.bottomAnchor.constraint(equalTo: status.topAnchor, constant: -8),
-      status.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
-      status.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -8),
-      status.heightAnchor.constraint(equalToConstant: 18),
-      status.trailingAnchor.constraint(lessThanOrEqualTo: saved.leadingAnchor, constant: -10),
-      saved.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
-      saved.centerYAnchor.constraint(equalTo: status.centerYAnchor),
+      workspace.bottomAnchor.constraint(equalTo: footer.topAnchor),
+      footer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      footer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      footer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      status.widthAnchor.constraint(lessThanOrEqualTo: footer.widthAnchor, constant: -28),
     ])
-    if !model.temporary { workspace.setPosition(230, ofDividerAt: 0) }
     raw.onChange = { [weak self] text in
       guard let self else { return }
       self.model.edit(text)
@@ -175,61 +178,100 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   }
   override func viewDidLayout() {
     super.viewDidLayout()
+    extractionHint.isHidden = documentSplit.bounds.width < 760
     if needsInitialSplitLayout, documentSplit.bounds.width > 500 {
       needsInitialSplitLayout = false
-      if !model.temporary { workspaceSplit.setPosition(230, ofDividerAt: 0) }
-      documentSplit.setPosition(documentSplit.bounds.width / 2, ofDividerAt: 0)
+      if !model.temporary { workspaceSplit.setPosition(264, ofDividerAt: 0) }
+      documentSplit.setPosition(documentSplit.bounds.width * 0.55, ofDividerAt: 0)
     }
   }
   override func viewDidAppear() {
     super.viewDidAppear()
     raw.focusEditor()
   }
+  func installToolbar(on window: NSWindow) {
+    let actions: [WorkspaceToolbar.Action] = [
+      .init("new", "New JSON", "square.and.pencil", #selector(newRecord), shortcut: "⌘N"),
+      .init("open", "Open", "folder", #selector(open), shortcut: "⌘O"),
+      .init(
+        "format", "Format JSON", "text.alignleft", #selector(format), shortcut: "⇧⌘F",
+        spacingBefore: .flexibleSpace),
+      .init("compact", "Compact JSON", "text.justify", #selector(compact)),
+      .init("find", "Find", "magnifyingglass", #selector(showFind), shortcut: "⌘F"),
+      .init(
+        "export", "Export", "square.and.arrow.up", #selector(export), shortcut: "⇧⌘S",
+        spacingBefore: .space),
+      .init("result", "Show / Hide Result", "sidebar.right", #selector(toggleResult)),
+      .init("settings", "Settings", "gearshape", #selector(showSettings), shortcut: "⌘,"),
+    ]
+    let windowActions =
+      model.temporary
+      ? Array(actions.dropFirst()) + [
+        .init(
+          "save", "Save to History", "tray.and.arrow.down", #selector(commitScratch), shortcut: "⌘S"
+        )
+      ]
+      : actions
+    let coordinator = WorkspaceToolbar(
+      target: self, identifier: model.temporary ? "Peel.scratch" : "Peel.workspace",
+      actions: windowActions)
+    toolbarCoordinator = coordinator
+    window.toolbar = coordinator.toolbar
+    window.toolbarStyle = .unifiedCompact
+    window.titleVisibility = .hidden
+  }
   private func makeSidebar() -> NSView {
-    let sidebar = NSView()
-    sidebar.widthAnchor.constraint(greaterThanOrEqualToConstant: 180).isActive = true
-    sidebar.widthAnchor.constraint(lessThanOrEqualToConstant: 340).isActive = true
-    let heading = NSStackView(views: [
-      NSTextField(labelWithString: "History"), spacer(), button("+", #selector(newRecord)),
-    ])
-    searchField.placeholderString = "Search title or content"
+    let sidebar = NSVisualEffectView()
+    sidebar.material = .sidebar
+    sidebar.blendingMode = .withinWindow
+    sidebar.widthAnchor.constraint(greaterThanOrEqualToConstant: 240).isActive = true
+    sidebar.widthAnchor.constraint(lessThanOrEqualToConstant: 360).isActive = true
+    let label = WorkspaceChrome.label("History", weight: .semibold)
+    label.textColor = .secondaryLabelColor
+    let heading = WorkspaceChrome.header([label, spacer()], height: 38, separator: false)
+    searchField.placeholderString = "Search history"
     searchField.delegate = self
+    searchField.controlSize = .regular
     let scroll = NSScrollView()
     scroll.hasVerticalScroller = true
     scroll.autohidesScrollers = true
+    scroll.drawsBackground = false
     let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("title"))
-    column.title = "History"
     table.addTableColumn(column)
     table.headerView = nil
-    table.rowHeight = 32
+    table.rowHeight = 48
+    table.intercellSpacing = NSSize(width: 0, height: 2)
     table.dataSource = self
     table.delegate = self
     table.style = .sourceList
+    table.backgroundColor = .clear
     let menu = NSMenu()
     menu.addItem(menuItem("Pin / Unpin", #selector(pinRecord)))
     menu.addItem(menuItem("Delete…", #selector(deleteRecord)))
     table.menu = menu
     scroll.documentView = table
-    let more = button("Load More", #selector(loadMore))
-    more.identifier = NSUserInterfaceItemIdentifier("more")
-    for item in [heading, searchField, scroll, more] {
+    loadMoreButton.title = "Load more history"
+    loadMoreButton.bezelStyle = .inline
+    loadMoreButton.controlSize = .small
+    loadMoreButton.target = self
+    loadMoreButton.action = #selector(loadMore)
+    for item in [heading, searchField, scroll, loadMoreButton] {
       sidebar.addSubview(item)
       item.translatesAutoresizingMaskIntoConstraints = false
     }
     NSLayoutConstraint.activate([
-      heading.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 8),
-      heading.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 12),
-      heading.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -12),
-      heading.heightAnchor.constraint(equalToConstant: 26),
-      searchField.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 8),
-      searchField.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 10),
-      searchField.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -10),
-      scroll.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 8),
-      scroll.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor),
-      scroll.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor),
-      scroll.bottomAnchor.constraint(equalTo: more.topAnchor, constant: -4),
-      more.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -6),
-      more.centerXAnchor.constraint(equalTo: sidebar.centerXAnchor),
+      heading.topAnchor.constraint(equalTo: sidebar.topAnchor, constant: 6),
+      heading.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor),
+      heading.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor),
+      searchField.topAnchor.constraint(equalTo: heading.bottomAnchor),
+      searchField.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 14),
+      searchField.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -14),
+      scroll.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 12),
+      scroll.leadingAnchor.constraint(equalTo: sidebar.leadingAnchor, constant: 6),
+      scroll.trailingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: -6),
+      scroll.bottomAnchor.constraint(equalTo: loadMoreButton.topAnchor, constant: -6),
+      loadMoreButton.bottomAnchor.constraint(equalTo: sidebar.bottomAnchor, constant: -10),
+      loadMoreButton.centerXAnchor.constraint(equalTo: sidebar.centerXAnchor),
     ])
     return sidebar
   }
@@ -238,18 +280,22 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   {
     let pane = NSView()
     pane.widthAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
-    let heading = label ?? NSTextField(labelWithString: title)
-    heading.font = .systemFont(ofSize: 11, weight: .semibold)
+    let heading = label ?? WorkspaceChrome.label(title, weight: .medium)
+    heading.font = .systemFont(ofSize: 12, weight: .medium)
     heading.textColor = .secondaryLabelColor
-    pane.addSubview(heading)
+    let metadata = label == nil ? WorkspaceChrome.label("JSON", weight: .regular) : resultState
+    metadata.font = .systemFont(ofSize: 10, weight: .medium)
+    metadata.textColor = .tertiaryLabelColor
+    let header = WorkspaceChrome.header([heading, spacer(), metadata], height: 34)
+    pane.addSubview(header)
     pane.addSubview(editor)
-    heading.translatesAutoresizingMaskIntoConstraints = false
+    header.translatesAutoresizingMaskIntoConstraints = false
     editor.translatesAutoresizingMaskIntoConstraints = false
     NSLayoutConstraint.activate([
-      heading.leadingAnchor.constraint(equalTo: pane.leadingAnchor, constant: 12),
-      heading.topAnchor.constraint(equalTo: pane.topAnchor, constant: 8),
-      heading.heightAnchor.constraint(equalToConstant: 18),
-      editor.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 5),
+      header.topAnchor.constraint(equalTo: pane.topAnchor),
+      header.leadingAnchor.constraint(equalTo: pane.leadingAnchor),
+      header.trailingAnchor.constraint(equalTo: pane.trailingAnchor),
+      editor.topAnchor.constraint(equalTo: header.bottomAnchor),
       editor.leadingAnchor.constraint(equalTo: pane.leadingAnchor),
       editor.trailingAnchor.constraint(equalTo: pane.trailingAnchor),
       editor.bottomAnchor.constraint(equalTo: pane.bottomAnchor),
@@ -269,7 +315,7 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
     guard isViewLoaded else { return }
     rendering = true
     defer { rendering = false }
-    view.appearance =
+    view.window?.appearance =
       model.settings.theme == "system"
       ? nil : NSAppearance(named: model.settings.theme == "dark" ? .darkAqua : .aqua)
     let dark = view.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
@@ -316,7 +362,17 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
         renderedResult = model.result.text
       }
     }
-    resultTitle.stringValue = model.busy ? "Result · Running…" : "Result"
+    resultTitle.stringValue = "Result"
+    resultState.stringValue =
+      model.busy ? "Running…" : model.result.status == "error" ? "Extraction error" : "Read only"
+    resultState.textColor = model.result.status == "error" ? .systemRed : .tertiaryLabelColor
+    runButton.isEnabled = model.ready && !model.transitioning
+    extractionHint.stringValue =
+      (model.summary?.byteSize ?? 0) > 1024 * 1024
+      ? "Large document · run manually" : "Auto-run · ⌘Return to run now"
+    loadMoreButton.isHidden = !model.hasMore
+    toolbarCoordinator?.setEnabled(model.ready && !model.transitioning)
+    view.window?.title = model.temporary ? "Peel — Scratch" : model.title + " — Peel"
     if let issue = model.issue {
       status.title = issue.localizedDescription
       status.contentTintColor = .systemRed
@@ -331,7 +387,7 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
       : model.temporary
         ? (model.dirty ? "Unsaved scratch" : "Scratch") : (model.dirty ? "Saving…" : "Saved")
     // Reload row titles as well as IDs: renaming/pinning must update the sidebar.
-    let signature = model.records.map { "\($0.id)|\($0.title)|\($0.pinned)" }
+    let signature = model.records.map { "\($0.id)|\($0.title)|\($0.pinned)|\($0.updatedAt)" }
     if signature != renderedRecords {
       table.reloadData()
       renderedRecords = signature
@@ -354,23 +410,10 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   {
     let identifier = NSUserInterfaceItemIdentifier("history")
     let cell =
-      tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
-      ?? NSTableCellView()
+      tableView.makeView(withIdentifier: identifier, owner: self) as? HistoryCellView
+      ?? HistoryCellView()
     cell.identifier = identifier
-    if cell.textField == nil {
-      let label = NSTextField(labelWithString: "")
-      label.lineBreakMode = .byTruncatingTail
-      cell.addSubview(label)
-      label.translatesAutoresizingMaskIntoConstraints = false
-      cell.textField = label
-      NSLayoutConstraint.activate([
-        label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 10),
-        label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
-        label.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-      ])
-    }
-    let record = model.records[row]
-    cell.textField?.stringValue = (record.pinned ? "📌 " : "") + record.title
+    cell.configure(model.records[row])
     return cell
   }
   func tableViewSelectionDidChange(_ notification: Notification) {
@@ -420,6 +463,9 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
   @objc private func revealIssue() { model.revealError += 1 }
   @objc private func toggleResult() {
     if let pane = resultPane {
+      if documentSplit.bounds.width > 0, let source = documentSplit.arrangedSubviews.first {
+        resultSplitFraction = source.frame.width / documentSplit.bounds.width
+      }
       if focusedEditor === resultEditor { focusedEditor = raw }
       pane.removeFromSuperview()
       resultPane = nil
@@ -427,6 +473,8 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
       renderedResult = ""
     } else {
       showResult()
+      view.layoutSubtreeIfNeeded()
+      documentSplit.setPosition(documentSplit.bounds.width * resultSplitFraction, ofDividerAt: 0)
       render()
     }
   }
@@ -488,39 +536,7 @@ final class WorkspaceViewController: NSViewController, NSTableViewDataSource, NS
         findField.stringValue, withText: replaceField.stringValue, all: all)
     }
   }
-  @objc func showSettings() {
-    guard let window = view.window else { return }
-    let appearance = NSPopUpButton()
-    appearance.addItems(withTitles: ["System", "Light", "Dark"])
-    appearance.selectItem(
-      at: ["system", "light", "dark"].firstIndex(of: model.settings.theme) ?? 0)
-    let font = NSPopUpButton()
-    font.addItems(withTitles: (10...30).map { "\($0) pt" })
-    font.selectItem(at: model.settings.editorFontSize - 10)
-    let shortcut = NSTextField(string: model.settings.quickPasteShortcut)
-    shortcut.placeholderString = "Command+Shift+J (empty disables)"
-    let grid = NSGridView(views: [
-      [NSTextField(labelWithString: "Appearance"), appearance],
-      [NSTextField(labelWithString: "Editor font"), font],
-      [NSTextField(labelWithString: "Quick Paste"), shortcut],
-    ])
-    grid.frame = NSRect(x: 0, y: 0, width: 410, height: 110)
-    grid.rowSpacing = 14
-    grid.columnSpacing = 12
-    let alert = NSAlert()
-    alert.messageText = "Settings"
-    alert.accessoryView = grid
-    alert.addButton(withTitle: "Save")
-    alert.addButton(withTitle: "Cancel")
-    alert.beginSheetModal(for: window) { [weak self] response in
-      guard let self, response == .alertFirstButtonReturn else { return }
-      var settings = model.settings
-      settings.theme = ["system", "light", "dark"][appearance.indexOfSelectedItem]
-      settings.editorFontSize = font.indexOfSelectedItem + 10
-      settings.quickPasteShortcut = shortcut.stringValue
-      Task { await self.model.updateSettings(settings) }
-    }
-  }
+  @objc func showSettings() { presentSettings?() }
   /// Measures insertion through the actual editor and synchronous AppKit redraw.
   /// It does not measure keyboard-event dispatch or physical display scan-out.
   func benchmarkEdits(samples: Int = 60) async -> Double {

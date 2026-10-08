@@ -225,18 +225,6 @@ final class WorkspaceModel: ObservableObject {
       await refresh()
     } catch { self.error = error.localizedDescription }
   }
-  func updateSettings(_ value: AppSettings) async {
-    let old = settings
-    do {
-      try onSettingsChanged?(value)
-      try await store.saveSettings(value)
-      settings = value
-      onSettingsSaved?(value)
-    } catch {
-      try? onSettingsChanged?(old)
-      self.error = error.localizedDescription
-    }
-  }
   func format(compact: Bool) {
     guard ready, !transitioning, record != nil else { return }
     let source = text

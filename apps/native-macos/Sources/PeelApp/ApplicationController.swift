@@ -25,6 +25,7 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     workspace.exportFile = { [weak self] in self?.exportFile() }
     workspace.saveTemporary = { [weak self] in self?.saveScratch() }
     window.contentViewController = workspace
+    workspace.installToolbar(on: window)
     window.delegate = self
     window.center()
   }
@@ -125,6 +126,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   private var statusItem: NSStatusItem?
   private var store: HistoryStore!
   private var hotKey: GlobalHotKey?
+  private var settingsWindow: SettingsWindow?
+  private var currentSettings = AppSettings()
+  private var settingsReady = false
+  private var settingsRequested = false
   private var legacyFiles: [URL] = []
   private var terminationInProgress = false
   private var selectionPreferenceKey = ""
@@ -167,8 +172,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
     model.onSettingsSaved = { [weak self] settings in
       guard let self else { return }
-      mainWindow?.model.settings = settings
-      for controller in scratchWindows.values { controller.model.settings = settings }
+      publishSettings(settings)
     }
     if !model.temporary {
       model.onSelectionChanged = { [weak self] id in
@@ -194,6 +198,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       print("PEEL_CONSTRUCTED_MS=\((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000)")
       fflush(stdout)
     }
+    controller.workspace.presentSettings = { [weak self] in self?.settings(nil) }
     controller.didClose = { [weak self] in self?.mainWindow = nil }
     mainWindow = controller
     controller.present()
@@ -265,6 +270,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     let model = WorkspaceModel(store: store, temporary: true, initialText: content)
     connect(model)
     let controller = WorkspaceWindow(model: model)
+    controller.workspace.presentSettings = { [weak self] in self?.settings(nil) }
     controller.didClose = { [weak self] in self?.scratchWindows.removeValue(forKey: id) }
     scratchWindows[id] = controller
     controller.present()
@@ -295,9 +301,48 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
   }
   @objc func find(_ sender: Any?) { activeWindow?.workspace.showFind() }
+  private func publishSettings(_ settings: AppSettings) {
+    currentSettings = settings
+    settingsReady = true
+    mainWindow?.model.settings = settings
+    for controller in scratchWindows.values { controller.model.settings = settings }
+    if settingsRequested {
+      settingsRequested = false
+      self.settings(nil)
+    }
+  }
   @objc func settings(_ sender: Any?) {
-    if activeWindow == nil { showMain(sender) }
-    activeWindow?.workspace.showSettings()
+    guard settingsReady else {
+      settingsRequested = true
+      return
+    }
+    if let settingsWindow, settingsWindow.window?.isVisible == true {
+      settingsWindow.window?.makeKeyAndOrderFront(nil)
+      return
+    }
+    let controller = SettingsWindow(settings: currentSettings) { [weak self] settings in
+      guard let self else { return false }
+      return await self.saveSettings(settings)
+    }
+    settingsWindow = controller
+    controller.showWindow(nil)
+    controller.window?.makeKeyAndOrderFront(nil)
+  }
+  private func saveSettings(_ settings: AppSettings) async -> Bool {
+    let previous = currentSettings
+    do {
+      try hotKey?.update(settings.quickPasteShortcut)
+      try await store.saveSettings(settings)
+      publishSettings(settings)
+      return true
+    } catch {
+      try? hotKey?.update(previous.quickPasteShortcut)
+      let alert = NSAlert()
+      alert.messageText = "Could not save settings"
+      alert.informativeText = error.localizedDescription
+      alert.runModal()
+      return false
+    }
   }
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
     showMain(nil)
@@ -305,6 +350,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   }
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
   func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    if settingsWindow?.isSaving == true { return .terminateCancel }
     if terminationInProgress { return .terminateLater }
     for controller in scratchWindows.values where controller.model.dirty {
       let alert = NSAlert()
