@@ -1,0 +1,23 @@
+{
+  "history_records": 1000,
+  "history_record_bytes": 1048576,
+  "machine": "arm64",
+  "macos": "27.0",
+  "edit_metric": "editor insertion plus synchronous AppKit redraw; excludes keyboard dispatch and display scan-out",
+  "PEEL_DID_FINISH_MS": 79.34258333261823,
+  "PEEL_CONSTRUCTED_MS": 368.9226249989588,
+  "PEEL_PRESENTED_MS": 402.09720833445317,
+  "PEEL_BOOTSTRAP_MS": 63.04258333329926,
+  "PEEL_INITIAL_RENDER_MS": 58.96674999894458,
+  "PEEL_READY_MS": 693.0,
+  "process_launch_to_ready_ms": 781.9772909970197,
+  "PEEL_INSERT_P95_MS": 5.950208331341855,
+  "PEEL_SYNC_P95_MS": 0.01816666917875409,
+  "PEEL_LAYOUT_P95_MS": 2.3579166663694195,
+  "PEEL_DOCUMENT_BYTES": 1048418.0,
+  "PEEL_EDIT_DRAW_P95_MS": 8.300124998640968,
+  "PEEL_IDLE_FOOTPRINT_BYTES": 108774768.0,
+  "PEEL_CLOSED_FOOTPRINT_BYTES": 100631896.0,
+  "sampled_peak_total_footprint_bytes": 326370672,
+  "measurement_date": "2026-10-08"
+}

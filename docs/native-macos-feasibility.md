@@ -6,7 +6,7 @@
 
 可行，建议继续做原型验证。Peel 是功能集中的本地 JSON 工作台，没有登录、云同步、终端、复杂插件或浏览器嵌入等迁移负担。窗口、菜单、文件和剪贴板容易替换；最大成本在 Monaco 的编辑体验替代，其次是脚本可中止执行和 JSON 行为兼容。
 
-建议采用 Swift 原生界面、AppKit 原生编辑器、SQLite 存储、独立 JavaScriptCore 辅助进程。实施中已将工作台外层从 SwiftUI 调整为 AppKit，以减少绘制和状态更新的开销。移除 Electron、Chromium、Node 桌面运行时及 WebView。JavaScript 引擎只负责提取，不承载界面。首版无需引入 Rust 或自研通用跨平台架构。
+建议采用 Swift 原生界面、AppKit 原生编辑器、SQLite 存储、独立 JavaScriptCore 辅助进程。首版曾采用 AppKit 工作台；后续按用户要求迁移为 SwiftUI 界面，以小范围 AppKit 桥接保留编辑器和窗口生命周期，并通过 Observation、正文版本更新及后台空闲回收控制开销。移除 Electron、Chromium、Node 桌面运行时及 WebView。JavaScript 引擎只负责提取，不承载界面。首版无需引入 Rust 或自研通用跨平台架构。
 
 这是桌面实现重写，不是简单换壳。现有数据契约、行为测试、历史数据和交互设计能继承；React、CSS、Electron 实现无法直接变为原生代码。
 
@@ -31,8 +31,8 @@
 
 | 现有组件 | 原生候选/处理方式 | 难度与关键约束 |
 | --- | --- | --- |
-| Electron 主窗口、临时窗口 | NSWindow / NSWindowController，AppKit 承载常规界面 | 低至中；保留临时窗口保存/丢弃和焦点行为 |
-| React hooks、Tailwind、Radix/shadcn | AppKit 控件与原生模型状态 | 中；需重写，保留工作台布局和流程，无需逐像素复制 CSS |
+| Electron 主窗口、临时窗口 | NSWindow / NSWindowController 保留生命周期，NSHostingController 承载 SwiftUI 界面 | 低至中；保留临时窗口保存/丢弃和焦点行为 |
+| React hooks、Tailwind、Radix/shadcn | SwiftUI 控件与 Observation 原生模型状态 | 中；需重写，保留工作台布局和流程，无需逐像素复制 CSS |
 | Framer Motion、Sonner、Lucide | 原生动画、轻量反馈、SF Symbols 或既有资源 | 低；避免后台持续动画 |
 | JSON 原文 Monaco | 优先验证 Scintilla + Lexilla 的 Cocoa 版本，以 STTextView 作对比候选 | 中至高；有现成高亮和折叠基础，仍需 Swift 桥接、错误范围、输入法、长行等验收 |
 | JS/JSONPath 表达式 Monaco | 同一原生编辑器封装，按语言启用功能 | 中；JS 高亮与执行保留，完整 JS 语义诊断/补全不作为首版承诺 |
@@ -124,4 +124,4 @@ JSONPath 必须核对现有 `wrap: true`、零结果、单结果展开、多结�
 
 优先投资编辑器和脚本验证。若编辑器候选无法稳定满足折叠、输入法、撤销及目标性能，应调整组件或重新讨论功能范围，再继续完整重写。当前信息不足以给出可靠的固定工期。
 
-用户已确认实施。当前原生工作区位于 `apps/native-macos`，采用 Scintilla Cocoa、AppKit、SQLite 和 JavaScriptCore helper；旧 Electron 工作区作为迁移对照保留。性能实测记录将在实施报告中列明测量口径与未覆盖项。
+用户已确认实施。当前原生工作区位于 `apps/native-macos`，采用 SwiftUI、Scintilla Cocoa 的 AppKit 桥接、SQLite 和 JavaScriptCore helper；旧 Electron 工作区作为迁移对照保留。性能实测记录将在实施报告中列明测量口径与未覆盖项。

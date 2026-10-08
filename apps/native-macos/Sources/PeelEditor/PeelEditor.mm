@@ -5,6 +5,11 @@
 #include <libproc.h>
 #include <sys/resource.h>
 #include <unistd.h>
+#include <malloc/malloc.h>
+void PeelReleaseUnusedMemory(void) {
+    // Return unused allocator pages after idle/close; live editor buffers remain owned normally.
+    malloc_zone_pressure_relief(nullptr, 0);
+}
 uint64_t PeelPhysicalFootprint(void) {
     struct rusage_info_v2 usage = {};
     return proc_pid_rusage(getpid(), RUSAGE_INFO_V2, (rusage_info_t *)&usage) == 0 ? usage.ri_phys_footprint : 0;

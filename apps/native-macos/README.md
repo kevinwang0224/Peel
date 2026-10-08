@@ -1,6 +1,6 @@
 # Peel Native for macOS
 
-Peel Native is a macOS 14+ / Apple Silicon JSON workspace built with Swift, AppKit, Scintilla Cocoa and SQLite. It has no Electron, Chromium, WebView or Node runtime. JavaScriptCore runs extraction expressions in disposable helper processes.
+Peel Native is a macOS 14+ / Apple Silicon JSON workspace built with SwiftUI, a narrow AppKit editor/window bridge, Scintilla Cocoa and SQLite. It has no Electron, Chromium, WebView or Node runtime. JavaScriptCore runs extraction expressions in disposable helper processes.
 
 ## Build and run
 
@@ -58,7 +58,7 @@ swift run --package-path apps/native-macos -c release PeelBench
 
 For an isolated manual session, set `PEEL_DATA_DIRECTORY` to a temporary directory and `PEEL_SKIP_MIGRATION=1`. `PEEL_METRICS=1` prints startup timing. `PEEL_BENCHMARK=1` drives a synthetic editing benchmark, closes its window, reports memory and exits; use it only with an isolated store.
 
-Measured implementation results and remaining limits are recorded in [the implementation report](../../docs/native-macos-implementation.md).
+Measured implementation results and remaining limits are recorded in [the implementation report](../../docs/native-macos-implementation.md) and [the SwiftUI migration report](../../docs/native-macos-swiftui.md).
 
 The target is macOS 14; actual execution has currently been checked on macOS 27 / Apple M3 Max. Testing the minimum OS and a full end-to-end latency measurement remain separate validation tasks.
 

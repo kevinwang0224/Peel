@@ -2,6 +2,8 @@
 
 2026-10-08，基点 `fcb3f9a`。
 
+此文件记录 AppKit 版改造。当前界面已进一步迁移为 SwiftUI，见[迁移报告](native-macos-swiftui.md)。
+
 采用 build-macos-apps 插件的 `swiftui-patterns` 中桌面布局、侧栏、菜单和独立设置指导，并按 `appkit-interop` 保留现有原生编辑器及 AppKit 窗口边界。此轮调整表现层，不增加 WebView 或新的 UI 框架。
 
 - 系统 NSToolbar、SF Symbols、快捷键提示和工具栏定制，替代内容顶部的整排文字按钮。

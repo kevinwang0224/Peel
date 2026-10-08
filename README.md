@@ -1,6 +1,6 @@
 # Peel
 
-The primary desktop implementation now includes a native macOS app using Swift, AppKit, Scintilla Cocoa, SQLite and a disposable JavaScriptCore helper. It targets macOS 14+ on Apple Silicon and runs without Electron, WebView or Node. See [native build, migration and verification instructions](apps/native-macos/README.md).
+The primary desktop implementation now includes a native macOS app using SwiftUI, AppKit editor/window bridges, Scintilla Cocoa, SQLite and a disposable JavaScriptCore helper. It targets macOS 14+ on Apple Silicon and runs without Electron, WebView or Node. See [native build, migration and verification instructions](apps/native-macos/README.md).
 
 ```bash
 bash apps/native-macos/scripts/build.sh

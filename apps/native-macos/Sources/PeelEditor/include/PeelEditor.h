@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 NS_ASSUME_NONNULL_BEGIN
 FOUNDATION_EXPORT uint64_t PeelPhysicalFootprint(void);
+FOUNDATION_EXPORT void PeelReleaseUnusedMemory(void);
 @interface PeelEditorView : NSView
 @property(copy) NSString *text;
 @property(copy, nullable) void (^onChange)(NSString *);

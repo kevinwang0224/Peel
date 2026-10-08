@@ -1,40 +1,42 @@
 import AppKit
-import Combine
+import Observation
 import PeelCore
 
 @MainActor
-final class WorkspaceModel: ObservableObject {
-  @Published var records: [HistorySummary] = []
-  @Published var selectedID: String?
-  @Published var text = ""
+@Observable
+final class WorkspaceModel {
+  var records: [HistorySummary] = []
+  var selectedID: String?
+  // Observe the revision, not megabytes of text: Observation equality would scan each edit.
+  @ObservationIgnored var text = ""
   private(set) var textRevision = 0
-  @Published var title = "Untitled"
-  @Published var extraction = ExtractionState()
-  @Published var result = ExtractionResult(status: "idle", text: "")
-  @Published var settings = AppSettings()
-  @Published var search = ""
-  @Published var issue: JSONIssue?
-  @Published var summary: JSONSummary?
-  @Published var error: String?
-  @Published var dirty = false
-  @Published var busy = false
-  @Published var revealError = 0
-  @Published var hasMore = false
-  @Published var transitioning = false
-  @Published private(set) var ready = false
+  var title = "Untitled"
+  var extraction = ExtractionState()
+  var result = ExtractionResult(status: "idle", text: "")
+  var settings = AppSettings()
+  var search = ""
+  var issue: JSONIssue?
+  var summary: JSONSummary?
+  var error: String?
+  var dirty = false
+  var busy = false
+  var revealError = 0
+  var hasMore = false
+  var transitioning = false
+  private(set) var ready = false
   let temporary: Bool
   let store: HistoryStore
-  var onSettingsChanged: ((AppSettings) throws -> Void)?
-  var onSaved: (() -> Void)?
-  var onSettingsSaved: ((AppSettings) -> Void)?
-  var onSelectionChanged: ((String) -> Void)?
-  private var record: HistoryRecord?
-  private var revision = 0
-  private var extractionRevision = 0
-  private var analysis: Task<Void, Never>?
-  private var extractionTask: Task<Void, Never>?
-  private var saveTask: Task<Void, Never>?
-  private var searchTask: Task<Void, Never>?
+  @ObservationIgnored var onSettingsChanged: ((AppSettings) throws -> Void)?
+  @ObservationIgnored var onSaved: (() -> Void)?
+  @ObservationIgnored var onSettingsSaved: ((AppSettings) -> Void)?
+  @ObservationIgnored var onSelectionChanged: ((String) -> Void)?
+  @ObservationIgnored private var record: HistoryRecord?
+  @ObservationIgnored private var revision = 0
+  @ObservationIgnored private var extractionRevision = 0
+  @ObservationIgnored private var analysis: Task<Void, Never>?
+  @ObservationIgnored private var extractionTask: Task<Void, Never>?
+  @ObservationIgnored private var saveTask: Task<Void, Never>?
+  @ObservationIgnored private var searchTask: Task<Void, Never>?
   private let runner: ExtractionRunner
 
   init(store: HistoryStore, temporary: Bool = false, initialText: String = "") {

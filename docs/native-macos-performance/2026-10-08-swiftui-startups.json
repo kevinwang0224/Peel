@@ -1,0 +1,17 @@
+[
+  {
+    "internal_ready_ms": 631,
+    "process_start_to_exit_ms": 781.6803750029067,
+    "exit_code": 0
+  },
+  {
+    "internal_ready_ms": 487,
+    "process_start_to_exit_ms": 667.8594170007273,
+    "exit_code": 0
+  },
+  {
+    "internal_ready_ms": 449,
+    "process_start_to_exit_ms": 594.558208998933,
+    "exit_code": 0
+  }
+]

@@ -2,7 +2,7 @@
 
 日期：2026-10-08。原生版位于 `apps/native-macos`，默认 `npm run dev:desktop` 和 `npm run build` 已切换到原生版本。
 
-后续界面与性能回归见[原生界面改造](native-macos-ui-redesign.md)。下方记录首版实施时的测试范围与基准。
+后续界面与性能回归见[原生界面改造](native-macos-ui-redesign.md)及[SwiftUI 迁移](native-macos-swiftui.md)。下方记录首版实施时的测试范围与基准。
 
 ## 已完成
 

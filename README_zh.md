@@ -2,7 +2,7 @@
 
 [English README](README.md)
 
-**Peel** 是一款 JSON 格式化与编辑工具。当前主线新增原生 macOS 版本，使用 Swift、AppKit、Scintilla Cocoa、SQLite 和独立 JavaScriptCore 提取进程，面向低内存和快速启动；旧 Electron 工作区保留用于迁移对照。
+**Peel** 是一款 JSON 格式化与编辑工具。当前主线新增原生 macOS 版本，使用 SwiftUI、AppKit 编辑器/窗口桥接、Scintilla Cocoa、SQLite 和独立 JavaScriptCore 提取进程，面向低内存和快速启动；旧 Electron 工作区保留用于迁移对照。
 
 原生版构建与运行：
 

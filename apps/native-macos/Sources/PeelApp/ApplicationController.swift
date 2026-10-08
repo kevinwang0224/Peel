@@ -25,9 +25,13 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     workspace.exportFile = { [weak self] in self?.exportFile() }
     workspace.saveTemporary = { [weak self] in self?.saveScratch() }
     window.contentViewController = workspace
-    workspace.installToolbar(on: window)
+    window.toolbarStyle = .unifiedCompact
     window.delegate = self
     window.center()
+    if !model.temporary, ProcessInfo.processInfo.environment["PEEL_DATA_DIRECTORY"] == nil {
+      window.setFrameAutosaveName("Peel.main")
+      window.setFrameUsingName("Peel.main")
+    }
   }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   func present() {
@@ -130,6 +134,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   private var currentSettings = AppSettings()
   private var settingsReady = false
   private var settingsRequested = false
+  private var memoryCleanup: Task<Void, Never>?
   private var legacyFiles: [URL] = []
   private var terminationInProgress = false
   private var selectionPreferenceKey = ""
@@ -166,6 +171,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
   }
   private func connect(_ model: WorkspaceModel) {
+    model.onSaved = { [weak self, weak model] in
+      guard let self else { return }
+      scheduleMemoryCleanup()
+      if model?.temporary == true, let mainModel = mainWindow?.model {
+        Task { await mainModel.refresh() }
+      }
+    }
     model.onSettingsChanged = { [weak self] settings in
       guard let self else { return }
       try hotKey?.update(settings.quickPasteShortcut)
@@ -181,9 +193,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       }
       return
     }
-    model.onSaved = { [weak self] in
-      guard let model = self?.mainWindow?.model else { return }
-      Task { await model.refresh() }
+  }
+  private func scheduleMemoryCleanup() {
+    memoryCleanup?.cancel()
+    memoryCleanup = Task.detached(priority: .utility) {
+      do { try await Task.sleep(for: .seconds(3)) } catch { return }
+      guard !Task.isCancelled else { return }
+      PeelReleaseUnusedMemory()
     }
   }
   @objc func showMain(_ sender: Any?) {
@@ -199,7 +215,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       fflush(stdout)
     }
     controller.workspace.presentSettings = { [weak self] in self?.settings(nil) }
-    controller.didClose = { [weak self] in self?.mainWindow = nil }
+    controller.didClose = { [weak self] in
+      self?.mainWindow = nil
+      self?.scheduleMemoryCleanup()
+    }
     mainWindow = controller
     controller.present()
     if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
@@ -212,7 +231,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         legacyFiles: legacyFiles,
         preferredRecordID: UserDefaults.standard.string(forKey: selectionPreferenceKey))
       let installedAt = ProcessInfo.processInfo.systemUptime
-      mainWindow?.workspace.renderReady()
+      await mainWindow?.workspace.renderReady()
       if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
         print("PEEL_BOOTSTRAP_MS=\((installedAt - bootstrapStart) * 1000)")
         print(
@@ -271,7 +290,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     connect(model)
     let controller = WorkspaceWindow(model: model)
     controller.workspace.presentSettings = { [weak self] in self?.settings(nil) }
-    controller.didClose = { [weak self] in self?.scratchWindows.removeValue(forKey: id) }
+    controller.didClose = { [weak self] in
+      self?.scratchWindows.removeValue(forKey: id)
+      self?.scheduleMemoryCleanup()
+    }
     scratchWindows[id] = controller
     controller.present()
     Task { await model.bootstrap(legacyFiles: []) }
@@ -301,7 +323,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
   }
   @objc func find(_ sender: Any?) { activeWindow?.workspace.showFind() }
+  @objc func rename(_ sender: Any?) { activeWindow?.workspace.showRename() }
+  @objc func toggleSidebar(_ sender: Any?) { activeWindow?.workspace.toggleSidebar() }
+  @objc func toggleExtraction(_ sender: Any?) { activeWindow?.workspace.toggleExtraction() }
   private func publishSettings(_ settings: AppSettings) {
+    scheduleMemoryCleanup()
     currentSettings = settings
     settingsReady = true
     mainWindow?.model.settings = settings
@@ -410,6 +436,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       item("New Scratch", #selector(newScratch(_:)), key: "n", modifiers: [.command, .shift]))
     file.addItem(item("Open…", #selector(openFile(_:)), key: "o"))
     file.addItem(item("Save", #selector(save(_:)), key: "s"))
+    file.addItem(item("Rename…", #selector(rename(_:))))
     file.addItem(
       item("Export…", #selector(exportFile(_:)), key: "s", modifiers: [.command, .shift]))
     file.addItem(item("Close Window", #selector(NSWindow.performClose(_:)), key: "w", target: nil))
@@ -431,6 +458,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     json.addItem(item("Compact", #selector(compact(_:))))
     json.addItem(item("Run Extraction", #selector(run(_:)), key: "\r"))
     add(json, to: bar)
+    let view = NSMenu(title: "View")
+    view.addItem(
+      item(
+        "Show / Hide Sidebar", #selector(toggleSidebar(_:)), key: "s",
+        modifiers: [.command, .control]))
+    view.addItem(item("Show / Hide Extraction", #selector(toggleExtraction(_:))))
+    add(view, to: bar)
     let window = NSMenu(title: "Window")
     window.addItem(
       item("Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m", target: nil))
