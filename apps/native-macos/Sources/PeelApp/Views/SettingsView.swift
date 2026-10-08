@@ -23,12 +23,13 @@ struct SettingsView: View {
           }
         }
         Section {
-          TextField(
-            "Shortcut", text: $draft.value.quickPasteShortcut, prompt: Text("Command+Shift+J"))
+          LabeledContent("Shortcut") {
+            ShortcutRecorder(shortcut: $draft.value.quickPasteShortcut)
+          }
         } header: {
           Text("Quick Paste")
         } footer: {
-          Text("Open clipboard content while the main window is closed. Leave empty to disable.")
+          Text("Opens the clipboard as a scratch window from anywhere. Click the field and press a key combination; ⌫ clears it.")
         }
       }
       .formStyle(.grouped)

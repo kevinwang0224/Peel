@@ -15,6 +15,11 @@ struct WorkspaceView: View {
       get: { model.temporary && model.title == "Untitled" ? "Scratch" : model.title },
       set: { model.rename($0) })
   }
+  private var subtitle: String {
+    guard let summary = model.summary else { return "" }
+    return
+      "\(summary.rootType) · \(summary.keyCount) keys · \(ByteCountFormatter.string(fromByteCount: Int64(summary.byteSize), countStyle: .file))"
+  }
   var body: some View {
     Group {
       if model.temporary {
@@ -30,11 +35,17 @@ struct WorkspaceView: View {
     }
     .toolbar(removing: .sidebarToggle)
     .navigationTitle(title)
+    .navigationSubtitle(subtitle)
     .disabled(!model.ready || model.transitioning)
     .alert("Rename JSON", isPresented: $presentation.renameVisible) {
       TextField("Title", text: $presentation.renameText)
       Button("Cancel", role: .cancel) {}
       Button("Rename") { model.rename(presentation.renameText) }
+    }
+    .alert("Go to Line", isPresented: $presentation.gotoVisible) {
+      TextField("Line number", text: $presentation.gotoText)
+      Button("Cancel", role: .cancel) {}
+      Button("Go") { presentation.goToLine() }
     }
     .alert(
       "Peel",
@@ -54,45 +65,26 @@ private struct WorkspaceDetail: View {
   @ObservedObject var presentation: WorkspacePresentation
   var body: some View {
     VStack(spacing: 0) {
-      if presentation.findVisible { FindBar(presentation: presentation) }
-      HSplitView {
-        VStack(spacing: 0) {
-          PaneHeading(
-            title: "Source",
-            detail: model.temporary
-              ? (model.dirty ? "Unsaved scratch" : "Scratch") : model.dirty ? "Saving…" : "Saved"
-          )
-          NativeEditor(model: model, presentation: presentation, role: .source)
-            .accessibilityLabel("JSON source")
-          SourceStatus(model: model)
-        }
-        .frame(minWidth: 320, idealWidth: 580, maxWidth: .infinity)
-        if presentation.resultVisible {
-          ExtractionPanel(model: model, presentation: presentation)
-            .frame(minWidth: 280, idealWidth: 360, maxWidth: .infinity)
-        }
+      if presentation.findVisible {
+        FindBar(presentation: presentation).transition(.move(edge: .top).combined(with: .opacity))
       }
+      NativeEditor(model: model, presentation: presentation, role: .source)
+        .accessibilityLabel("JSON source")
+      SourceStatus(model: model, cursor: presentation.cursor)
     }
-  }
-}
-
-struct PaneHeading: View {
-  let title: String
-  let detail: String
-  var body: some View {
-    HStack {
-      Text(title).font(.system(size: 11, weight: .medium))
-      Spacer()
-      Text(detail).font(.system(size: 10)).foregroundStyle(.secondary)
+    .animation(.easeOut(duration: 0.15), value: presentation.findVisible)
+    .frame(minWidth: 360)
+    .inspector(isPresented: $presentation.resultVisible) {
+      ExtractionPanel(model: model, presentation: presentation)
+        .inspectorColumnWidth(min: 300, ideal: 400, max: 800)
     }
-    .foregroundStyle(.secondary).padding(.horizontal, 12).frame(height: 28)
-    .overlay(alignment: .bottom) { Divider() }
   }
 }
 
 @MainActor
 private struct SourceStatus: View {
   let model: WorkspaceModel
+  @ObservedObject var cursor: CursorState
   private var text: String {
     if let issue = model.issue { return issue.localizedDescription }
     guard let summary = model.summary else { return model.ready ? "JSON" : "Opening…" }
@@ -111,9 +103,12 @@ private struct SourceStatus: View {
       }
       .buttonStyle(.plain)
       .foregroundStyle(model.issue == nil ? Color.secondary : Color.red)
+      .help(model.issue == nil ? "" : "Jump to the error")
       Spacer(minLength: 0)
+      Text("Ln \(cursor.line), Col \(cursor.column)")
+        .monospacedDigit().foregroundStyle(.secondary)
     }
-    .font(.system(size: 10)).padding(.horizontal, 12).frame(height: 25)
-    .overlay(alignment: .top) { Divider() }
+    .font(.caption).padding(.horizontal, 12).frame(height: 24)
+    .background(.bar)
   }
 }

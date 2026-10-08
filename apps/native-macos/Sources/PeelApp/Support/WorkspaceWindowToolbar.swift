@@ -34,6 +34,7 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
 
   init(target: WorkspaceViewController, temporary: Bool) {
     self.target = target
+    self.temporary = temporary
     toolbar = NSToolbar(identifier: temporary ? "Peel.scratch.fixed" : "Peel.workspace.fixed")
     actions =
       (temporary
@@ -79,8 +80,18 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     toolbar.autosavesConfiguration = false
   }
 
+  private let temporary: Bool
   func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-    actions.flatMap { ($0.spacingBefore.map { [$0] } ?? []) + [$0.id] }
+    var identifiers = actions.flatMap { ($0.spacingBefore.map { [$0] } ?? []) + [$0.id] }
+    guard !temporary else { return identifiers }
+    // Keep sidebar items inside the sidebar column and the result toggle over the inspector.
+    if let new = identifiers.firstIndex(of: .init("new")) {
+      identifiers.insert(.sidebarTrackingSeparator, at: new + 1)
+    }
+    if let last = identifiers.firstIndex(of: .init("extraction")) {
+      identifiers.insert(.inspectorTrackingSeparator, at: last)
+    }
+    return identifiers
   }
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
     toolbarDefaultItemIdentifiers(toolbar)

@@ -22,11 +22,12 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     window.contentMinSize = NSSize(width: model.temporary ? 920 : 900, height: 500)
     super.init(window: window)
     workspace.importFile = { [weak self] in self?.openFile() }
+    workspace.openURL = { [weak self] url in self?.open(url) }
     workspace.exportFile = { [weak self] in self?.exportFile() }
     workspace.saveTemporary = { [weak self] in self?.saveScratch() }
     window.contentViewController = workspace
     workspace.installToolbar(on: window)
-    window.toolbarStyle = .unifiedCompact
+    window.toolbarStyle = .unified
     window.delegate = self
     window.center()
     if !model.temporary, ProcessInfo.processInfo.environment["PEEL_DATA_DIRECTORY"] == nil {
@@ -95,6 +96,9 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     panel.allowedContentTypes = [.json, .plainText]
     panel.allowsMultipleSelection = false
     guard panel.runModal() == .OK, let url = panel.url else { return }
+    open(url)
+  }
+  func open(_ url: URL) {
     Task {
       do {
         let contents = try await Task.detached { try String(contentsOf: url, encoding: .utf8) }
@@ -327,6 +331,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
   }
   @objc func find(_ sender: Any?) { activeWindow?.workspace.showFind() }
+  @objc func findAndReplace(_ sender: Any?) { activeWindow?.workspace.showReplace() }
+  @objc func findNext(_ sender: Any?) { activeWindow?.workspace.findNext() }
+  @objc func findPrevious(_ sender: Any?) { activeWindow?.workspace.findPrevious() }
+  @objc func useSelectionForFind(_ sender: Any?) { activeWindow?.workspace.useSelectionForFind() }
+  @objc func goToLine(_ sender: Any?) { activeWindow?.workspace.showGoToLine() }
+  @objc func foldAll(_ sender: Any?) { activeWindow?.workspace.foldAll() }
+  @objc func unfoldAll(_ sender: Any?) { activeWindow?.workspace.unfoldAll() }
   @objc func rename(_ sender: Any?) { activeWindow?.workspace.showRename() }
   @objc func toggleSidebar(_ sender: Any?) { activeWindow?.workspace.toggleSidebar() }
   @objc func toggleExtraction(_ sender: Any?) { activeWindow?.workspace.toggleExtraction() }
@@ -455,7 +466,16 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       edit.addItem(
         item(title, NSSelectorFromString(selector), key: key, modifiers: flags, target: nil))
     }
+    edit.addItem(.separator())
     edit.addItem(item("Find…", #selector(find(_:)), key: "f"))
+    edit.addItem(
+      item("Find and Replace…", #selector(findAndReplace(_:)), key: "f", modifiers: [.command, .option]))
+    edit.addItem(item("Find Next", #selector(findNext(_:)), key: "g"))
+    edit.addItem(
+      item("Find Previous", #selector(findPrevious(_:)), key: "g", modifiers: [.command, .shift]))
+    edit.addItem(item("Use Selection for Find", #selector(useSelectionForFind(_:)), key: "e"))
+    edit.addItem(.separator())
+    edit.addItem(item("Go to Line…", #selector(goToLine(_:)), key: "l"))
     add(edit, to: bar)
     let json = NSMenu(title: "JSON")
     json.addItem(item("Format", #selector(format(_:)), key: "f", modifiers: [.command, .shift]))
@@ -468,10 +488,19 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         "Show / Hide Sidebar", #selector(toggleSidebar(_:)), key: "s",
         modifiers: [.command, .control]))
     view.addItem(item("Show / Hide Extraction", #selector(toggleExtraction(_:))))
+    view.addItem(.separator())
+    view.addItem(
+      item("Collapse All", #selector(foldAll(_:)), key: "\u{F702}", modifiers: [.command, .option]))
+    view.addItem(
+      item("Expand All", #selector(unfoldAll(_:)), key: "\u{F703}", modifiers: [.command, .option]))
     add(view, to: bar)
     let window = NSMenu(title: "Window")
     window.addItem(
       item("Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m", target: nil))
+    window.addItem(item("Zoom", #selector(NSWindow.performZoom(_:)), target: nil))
+    window.addItem(.separator())
+    window.addItem(
+      item("Bring All to Front", #selector(NSApplication.arrangeInFront(_:)), target: NSApp))
     add(window, to: bar)
     NSApp.windowsMenu = window
     NSApp.mainMenu = bar

@@ -27,7 +27,16 @@ struct NativeEditor: NSViewRepresentable {
     editor.onFocus = { [weak presentation] in presentation?.focus(role) }
     editor.onRun = { [weak model] in model?.run() }
     editor.onChange = { [weak coordinator] text in coordinator?.edited(text) }
-    if role == .source { editor.transformPaste = { JSONDocument.pasted($0) } }
+    if role == .source {
+      editor.transformPaste = { JSONDocument.pasted($0) }
+      editor.onCursor = { [weak presentation] line, column in
+        presentation?.cursor.update(line: line, column: column)
+      }
+      editor.onDropFile = { [weak presentation] path in
+        presentation?.openURL?(URL(fileURLWithPath: path))
+      }
+    }
+    editor.recessed = role == .result
     return editor
   }
   func updateNSView(_ editor: PeelEditorView, context: Context) {
@@ -39,6 +48,8 @@ struct NativeEditor: NSViewRepresentable {
     editor.onFocus = nil
     editor.onRun = nil
     editor.transformPaste = nil
+    editor.onCursor = nil
+    editor.onDropFile = nil
   }
 
   @MainActor
@@ -90,7 +101,9 @@ struct NativeEditor: NSViewRepresentable {
           editor.text = model.text
           textRevision = model.textRevision
         }
-        editor.markError(atByte: model.issue?.byteOffset ?? -1, reveal: reveal != model.revealError)
+        editor.markError(
+          atByte: model.issue?.byteOffset ?? -1, message: model.issue?.message,
+          reveal: reveal != model.revealError)
         reveal = model.revealError
       case .expression:
         if document != model.selectedID || mode != model.extraction.mode {

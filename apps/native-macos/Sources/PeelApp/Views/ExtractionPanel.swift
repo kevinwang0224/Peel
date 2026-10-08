@@ -8,46 +8,54 @@ struct ExtractionPanel: View {
   private var mode: Binding<ExtractionMode> {
     Binding(get: { model.extraction.mode }, set: { model.setMode($0) })
   }
+  private var failed: Bool { model.result.status == "error" }
+  private var status: String {
+    if model.busy { return "Running…" }
+    switch model.result.status {
+    case "idle": return "No result yet"
+    case "error": return "Extraction failed"
+    default: return "Extraction complete"
+    }
+  }
   var body: some View {
-    VStack(spacing: 0) {
-      PaneHeading(
-        title: "Result",
-        detail: model.busy ? "Running…" : model.result.status == "error" ? "Error" : "Read only")
-      NativeEditor(model: model, presentation: presentation, role: .result)
-        .accessibilityLabel("Extraction result")
-      HStack {
-        Text(
-          model.result.status == "idle"
-            ? "No result yet"
-            : model.result.status == "error" ? "Extraction failed" : "Extraction complete")
-        Spacer()
-      }
-      .font(.system(size: 10)).foregroundStyle(.secondary)
-      .padding(.horizontal, 12).frame(height: 25)
-      .overlay(alignment: .top) { Divider() }
-      Divider()
-      HStack(spacing: 10) {
-        Text("Extraction").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-        Spacer(minLength: 4)
-        Picker("Mode", selection: mode) {
-          Text("JavaScript").tag(ExtractionMode.javascript)
-          Text("JSONPath").tag(ExtractionMode.jsonpath)
+    VSplitView {
+      VStack(spacing: 0) {
+        NativeEditor(model: model, presentation: presentation, role: .result)
+          .accessibilityLabel("Extraction result")
+        HStack(spacing: 6) {
+          if model.busy { ProgressView().controlSize(.mini) }
+          Text(status).lineLimit(1)
+          Spacer(minLength: 0)
+          Text("Read only")
         }
-        .pickerStyle(.menu).labelsHidden().fixedSize()
-        .disabled(!model.ready || model.transitioning)
+        .font(.caption)
+        .foregroundStyle(failed ? Color.red : Color.secondary)
+        .padding(.horizontal, 12).frame(height: 24)
+        .background(.bar)
       }
-      .controlSize(.small).padding(.horizontal, 12).frame(height: 28)
-      Divider()
-      NativeEditor(model: model, presentation: presentation, role: .expression)
-        .accessibilityLabel("Extraction expression").frame(height: 120)
-      HStack {
-        Text((model.summary?.byteSize ?? 0) > 1024 * 1024 ? "Run manually" : "Runs automatically")
-          .font(.system(size: 10)).foregroundStyle(.secondary)
-        Spacer()
-        Button("Run", systemImage: "play.fill") { model.run() }
-          .controlSize(.small).disabled(!model.ready || model.transitioning)
+      .frame(minHeight: 120)
+      VStack(spacing: 0) {
+        HStack(spacing: 10) {
+          Picker("Mode", selection: mode) {
+            Text("JS").tag(ExtractionMode.javascript)
+            Text("JSONPath").tag(ExtractionMode.jsonpath)
+          }
+          .pickerStyle(.segmented).labelsHidden().fixedSize()
+          .disabled(!model.ready || model.transitioning)
+          Spacer(minLength: 4)
+          if (model.summary?.byteSize ?? 0) > 1024 * 1024 {
+            Text("Large file: run manually").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+          }
+          Button("Run", systemImage: "play.fill") { model.run() }
+            .controlSize(.small).disabled(!model.ready || model.transitioning)
+            .help("Run (⌘Return)")
+        }
+        .controlSize(.small).padding(.horizontal, 12).frame(height: 32)
+        .background(.bar)
+        NativeEditor(model: model, presentation: presentation, role: .expression)
+          .accessibilityLabel("Extraction expression")
       }
-      .padding(.horizontal, 12).frame(height: 32)
+      .frame(minHeight: 100, idealHeight: 150)
     }
   }
 }

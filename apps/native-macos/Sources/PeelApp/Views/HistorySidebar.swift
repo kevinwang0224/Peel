@@ -19,13 +19,25 @@ struct HistorySidebar: View {
   }
   var body: some View {
     List(selection: selection) {
-      if model.records.contains(where: \.pinned) {
-        Section("Pinned") { records(model.records.filter(\.pinned)) }
+      ForEach(HistoryGrouping.sections(model.records)) { section in
+        Section(section.group.title) { records(section.records) }
       }
-      Section("Recent") { records(model.records.filter { !$0.pinned }) }
     }
     .listStyle(.sidebar)
+    .onDeleteCommand {
+      if let id = model.selectedID { actions.deleteRecord?(id) }
+    }
     .searchable(text: search, placement: .sidebar, prompt: "Search history")
+    .overlay {
+      if model.records.isEmpty && model.ready {
+        if model.search.isEmpty {
+          ContentUnavailableView(
+            "No History", systemImage: "clock", description: Text("JSON you edit appears here."))
+        } else {
+          ContentUnavailableView.search(text: model.search)
+        }
+      }
+    }
     .safeAreaInset(edge: .bottom) {
       if model.hasMore {
         Button("Load more history") { Task { await model.refresh(more: true) } }
@@ -54,32 +66,23 @@ struct HistorySidebar: View {
 
 private struct HistoryRow: View {
   let record: HistorySummary
-  private static let iso = ISO8601DateFormatter()
-  private static let fractional: ISO8601DateFormatter = {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    return formatter
-  }()
-  private var date: String {
-    guard
-      let date = Self.iso.date(from: record.updatedAt)
-        ?? Self.fractional.date(from: record.updatedAt)
-    else { return "" }
-    if Calendar.current.isDateInToday(date) {
-      return "Today · " + date.formatted(date: .omitted, time: .shortened)
-    }
-    return date.formatted(date: .abbreviated, time: .omitted)
+  private var detail: String {
+    guard let date = record.updatedDate else { return "" }
+    return Calendar.current.isDateInToday(date) || Calendar.current.isDateInYesterday(date)
+      ? date.formatted(date: .omitted, time: .shortened)
+      : date.formatted(date: .abbreviated, time: .omitted)
   }
   var body: some View {
-    HStack(spacing: 9) {
-      Image(systemName: record.pinned ? "pin.fill" : "doc.text")
-        .foregroundStyle(.secondary).frame(width: 16)
-      VStack(alignment: .leading, spacing: 3) {
-        Text(record.title).font(.system(size: 12)).lineLimit(1)
-        Text(date).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+    VStack(alignment: .leading, spacing: 2) {
+      HStack(spacing: 4) {
+        if record.pinned {
+          Image(systemName: "pin.fill").font(.system(size: 9)).foregroundStyle(.orange)
+        }
+        Text(record.title).lineLimit(1)
       }
+      Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
     }
-    .padding(.vertical, 3)
+    .padding(.vertical, 2)
     .help(record.title)
   }
 }

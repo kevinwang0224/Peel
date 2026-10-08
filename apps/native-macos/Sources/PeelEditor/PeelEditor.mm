@@ -22,17 +22,37 @@ extern const Lexilla::LexerModule lmJSON;
 extern const Lexilla::LexerModule lmCPP;
 
 // Scintilla stores opaque RGB: resolve AppKit's alpha-based label colors against the editor surface.
-static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
+static NSColor *PeelBlend(NSColor *color, NSColor *background, CGFloat alpha) {
     NSColor *rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
     NSColor *base = [background colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
-    CGFloat alpha = rgb.alphaComponent;
     return [NSColor colorWithSRGBRed:rgb.redComponent * alpha + base.redComponent * (1 - alpha)
                              green:rgb.greenComponent * alpha + base.greenComponent * (1 - alpha)
                               blue:rgb.blueComponent * alpha + base.blueComponent * (1 - alpha) alpha:1];
 }
+static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
+    NSColor *rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    return PeelBlend(rgb, background, rgb.alphaComponent);
+}
+// SCI_SETELEMENTCOLOUR expects 0xAABBGGRR.
+static sptr_t PeelPackedRGBA(NSColor *color) {
+    NSColor *rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    return (sptr_t)(0xFFu << 24 | (unsigned)lround(rgb.blueComponent * 255) << 16 |
+                    (unsigned)lround(rgb.greenComponent * 255) << 8 | (unsigned)lround(rgb.redComponent * 255));
+}
+// System monospaced (SF Mono) when Scintilla's font lookup can resolve it; Menlo otherwise.
+static NSString *PeelEditorFontName(void) {
+    static NSString *name;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSFont *mono = [NSFont monospacedSystemFontOfSize:13 weight:NSFontWeightRegular];
+        name = [NSFont fontWithName:mono.fontName size:13] ? mono.fontName : @"Menlo";
+    });
+    return name;
+}
+static const int PeelErrorAnnotationStyle = 60;
+static const NSInteger PeelMatchLimit = 10000;
 
 @interface PeelEditorView (Selection)
-- (NSString *)selectedText;
 - (void)replaceSelectionWithText:(NSString *)text;
 @end
 @interface PeelContentView : SCIContentView
@@ -74,7 +94,13 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
     NSString *_language;
     NSInteger _fontSize;
     BOOL _dark;
+    BOOL _readOnly;
+    BOOL _appliedRecessed;
     BOOL _configured;
+    BOOL _cursorReportPending;
+    NSInteger _marginDigits;
+    NSInteger _errorOffset;
+    NSString *_errorMessage;
 }
 @end
 @implementation PeelEditorView
@@ -110,12 +136,20 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
         [_editor message:SCI_SETWRAPMODE wParam:SC_WRAP_NONE];
         [_editor message:SCI_SETLAYOUTCACHE wParam:SC_CACHE_PAGE];
         [_editor message:SCI_INDICSETSTYLE wParam:8 lParam:INDIC_SQUIGGLE];
-        [_editor message:SCI_INDICSETFORE wParam:8 lParam:0x4444DD];
+        _errorOffset = -1;
         [self configureLanguage:@"json" dark:NO fontSize:14 readOnly:NO];
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(systemColorsChanged:)
+                                                     name:NSSystemColorsDidChangeNotification object:nil];
     }
     return self;
 }
+- (void)systemColorsChanged:(NSNotification *)notification {
+    // Accent and selection colors are copied into Scintilla; refresh them when the user changes them.
+    _configured = NO;
+    [self configureLanguage:_language dark:_dark fontSize:_fontSize readOnly:_readOnly];
+}
 - (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
     _editor.delegate = nil;
     ((PeelContentView *)_editor.content).peelOwner = nil;
 }
@@ -146,6 +180,8 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
     [_editor message:SCI_ENDUNDOACTION];
     [_editor setEditable:!readOnly];
     _updating = NO;
+    _errorOffset = -2;  // the replacement removed indicators and annotations
+    [self updateLineNumberMargin:NO];
 }
 - (void)replaceSelectionWithText:(NSString *)text {
     if (![_editor isEditable]) return;
@@ -162,8 +198,41 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
     [_editor message:SCI_EMPTYUNDOBUFFER];
     [_editor message:SCI_GOTOPOS wParam:0];
 }
+- (void)updateLineNumberMargin:(BOOL)force {
+    sptr_t lines = [_editor message:SCI_GETLINECOUNT];
+    NSInteger digits = 3;
+    for (sptr_t limit = 1000; lines >= limit; limit *= 10) digits++;
+    if (!force && digits == _marginDigits) return;
+    _marginDigits = digits;
+    std::string widest((size_t)digits, '9');
+    sptr_t width = [_editor message:SCI_TEXTWIDTH wParam:STYLE_LINENUMBER lParam:(sptr_t)widest.c_str()];
+    [_editor message:SCI_SETMARGINWIDTHN wParam:0 lParam:width + 10];
+}
+- (void)reportCursor {
+    if (!self.onCursor || _cursorReportPending) return;
+    _cursorReportPending = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self->_cursorReportPending = NO;
+        if (!self.onCursor) return;
+        const sptr_t position = [self->_editor message:SCI_GETCURRENTPOS];
+        const sptr_t line = [self->_editor message:SCI_LINEFROMPOSITION wParam:position];
+        const sptr_t column = [self->_editor message:SCI_GETCOLUMN wParam:position];
+        self.onCursor(line + 1, column + 1);
+    });
+}
 - (void)notification:(SCNotification *)notification {
     if (notification->nmhdr.code == SCN_FOCUSIN && self.onFocus) self.onFocus();
+    if (notification->nmhdr.code == SCN_URIDROPPED && self.onDropFile && notification->text) {
+        self.onDropFile([NSString stringWithUTF8String:notification->text]);
+    }
+    if (notification->nmhdr.code == SCN_UPDATEUI && !_updating &&
+        (notification->updated & (SC_UPDATE_SELECTION | SC_UPDATE_CONTENT))) {
+        [self reportCursor];
+    }
+    if (notification->nmhdr.code == SCN_MODIFIED &&
+        (notification->modificationType & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT)) && notification->linesAdded != 0) {
+        [self updateLineNumberMargin:NO];
+    }
     if (!_updating && notification->nmhdr.code == SCN_MODIFIED &&
         (notification->modificationType & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT)) && self.onChange) {
         self.onChange(self.text);
@@ -171,8 +240,10 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
 }
 - (void)configureLanguage:(NSString *)language dark:(BOOL)dark fontSize:(NSInteger)fontSize readOnly:(BOOL)readOnly {
     if (_editor.isEditable == readOnly) [_editor setEditable:!readOnly];
-    if (_configured && [_language isEqualToString:language] && _fontSize == fontSize && _dark == dark) return;
-    _configured = YES; _fontSize = fontSize; _dark = dark;
+    _readOnly = readOnly;
+    if (_configured && [_language isEqualToString:language] && _fontSize == fontSize && _dark == dark &&
+        _appliedRecessed == _recessed) return;
+    _configured = YES; _fontSize = fontSize; _dark = dark; _appliedRecessed = _recessed;
     if (![_language isEqualToString:language]) {
         _language = [language copy];
         auto lexer = [language isEqualToString:@"json"] ? lmJSON.Create() :
@@ -185,8 +256,9 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
     NSAppearance *appearance = [NSAppearance appearanceNamed:dark ? NSAppearanceNameDarkAqua : NSAppearanceNameAqua];
     [appearance performAsCurrentDrawingAppearance:^{
         NSColor *background = [NSColor textBackgroundColor];
+        if (_recessed) background = PeelBlend([NSColor windowBackgroundColor], background, 0.5);
         NSColor *foreground = [NSColor textColor];
-        [_editor setFontName:@"Menlo" size:(int)fontSize bold:NO italic:NO];
+        [_editor setFontName:PeelEditorFontName() size:(int)fontSize bold:NO italic:NO];
         [_editor setColorProperty:SCI_STYLESETFORE parameter:STYLE_DEFAULT value:foreground];
         [_editor setColorProperty:SCI_STYLESETBACK parameter:STYLE_DEFAULT value:background];
         [_editor message:SCI_STYLECLEARALL];
@@ -198,8 +270,15 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
             [_editor setColorProperty:SCI_MARKERSETFORE parameter:marker value:PeelOpaqueColor([NSColor tertiaryLabelColor], background)];
             [_editor setColorProperty:SCI_MARKERSETBACK parameter:marker value:background];
         }
-        [_editor setColorProperty:SCI_SETCARETFORE parameter:0 value:foreground];
+        [_editor setColorProperty:SCI_SETCARETFORE parameter:0 value:[NSColor textInsertionPointColor]];
         [_editor setColorProperty:SCI_SETSELBACK parameter:1 value:[NSColor selectedTextBackgroundColor]];
+        // Selection in a window or pane without focus is gray, as in AppKit text views.
+        [_editor message:SCI_SETELEMENTCOLOUR wParam:SC_ELEMENT_SELECTION_INACTIVE_BACK
+                  lParam:PeelPackedRGBA(PeelOpaqueColor([NSColor unemphasizedSelectedTextBackgroundColor], background))];
+        [_editor setColorProperty:SCI_INDICSETFORE parameter:8 value:[NSColor systemRedColor]];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:PeelErrorAnnotationStyle value:[NSColor systemRedColor]];
+        [_editor setColorProperty:SCI_STYLESETBACK parameter:PeelErrorAnnotationStyle
+                            value:PeelBlend([NSColor systemRedColor], background, 0.10)];
         [_editor message:SCI_SETCARETLINEVISIBLE wParam:1];
         [_editor setColorProperty:SCI_SETCARETLINEBACK parameter:0 value:[NSColor quaternaryLabelColor]];
         [_editor message:SCI_SETCARETLINEBACKALPHA wParam:18];
@@ -210,21 +289,141 @@ static NSColor *PeelOpaqueColor(NSColor *color, NSColor *background) {
         [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_KEYWORD : SCE_C_WORD value:dark ? [NSColor colorWithSRGBRed:0.76 green:0.61 blue:0.86 alpha:1] : [NSColor colorWithSRGBRed:0.48 green:0.31 blue:0.59 alpha:1]];
     }];
     [_editor setEditable:!readOnly];
+    [_editor message:SCI_ANNOTATIONSETVISIBLE wParam:ANNOTATION_STANDARD];
+    _errorOffset = -2;  // style reset: repaint the diagnostic on the next mark
+    [self updateLineNumberMargin:YES];
 }
-- (void)markErrorAtByte:(NSInteger)offset reveal:(BOOL)reveal {
-    [_editor message:SCI_SETINDICATORCURRENT wParam:8];
-    [_editor message:SCI_INDICATORCLEARRANGE wParam:0 lParam:[_editor message:SCI_GETLENGTH]];
-    if (offset < 0) return;
-    auto length = [_editor message:SCI_GETLENGTH];
-    auto position = std::min((sptr_t)offset, std::max((sptr_t)0, length - 1));
-    [_editor message:SCI_INDICATORFILLRANGE wParam:position lParam:1];
-    if (reveal) { [_editor message:SCI_GOTOPOS wParam:position]; [self focusEditor]; }
+- (void)markErrorAtByte:(NSInteger)offset message:(NSString *)message reveal:(BOOL)reveal {
+    NSString *text = message ?: @"";
+    // Synchronization runs on every SwiftUI update; only touch Scintilla when the diagnostic changes.
+    if (offset != _errorOffset || ![text isEqualToString:_errorMessage ?: @""]) {
+        [_editor message:SCI_SETINDICATORCURRENT wParam:8];
+        [_editor message:SCI_INDICATORCLEARRANGE wParam:0 lParam:[_editor message:SCI_GETLENGTH]];
+        [_editor message:SCI_ANNOTATIONCLEARALL];
+        if (offset >= 0) {
+            auto length = [_editor message:SCI_GETLENGTH];
+            auto position = std::min((sptr_t)offset, std::max((sptr_t)0, length - 1));
+            [_editor message:SCI_INDICATORFILLRANGE wParam:position lParam:1];
+            if (text.length) {
+                const sptr_t line = [_editor message:SCI_LINEFROMPOSITION wParam:position];
+                [_editor message:SCI_ANNOTATIONSETTEXT wParam:line lParam:(sptr_t)text.UTF8String];
+                [_editor message:SCI_ANNOTATIONSETSTYLE wParam:line lParam:PeelErrorAnnotationStyle];
+            }
+        }
+        _errorOffset = offset;
+        _errorMessage = [text copy];
+    }
+    if (offset >= 0 && reveal) {
+        auto length = [_editor message:SCI_GETLENGTH];
+        [_editor message:SCI_GOTOPOS wParam:std::min((sptr_t)offset, std::max((sptr_t)0, length - 1))];
+        [self focusEditor];
+    }
 }
-- (BOOL)findText:(NSString *)text backwards:(BOOL)backwards {
-    return [_editor findAndHighlightText:text matchCase:NO wholeWord:NO scrollTo:YES wrap:YES backwards:backwards];
+
+static int PeelSearchFlags(PeelFindOptions options) {
+    int flags = 0;
+    if (options & PeelFindOptionMatchCase) flags |= SCFIND_MATCHCASE;
+    if (options & PeelFindOptionWholeWord) flags |= SCFIND_WHOLEWORD;
+    if (options & PeelFindOptionRegex) flags |= SCFIND_REGEXP | SCFIND_CXX11REGEX;
+    return flags;
 }
-- (NSInteger)replaceText:(NSString *)text withText:(NSString *)replacement all:(BOOL)all {
-    return [_editor findAndReplaceText:text byText:replacement matchCase:NO wholeWord:NO doAll:all];
+// Searches [start, end) (backwards when start > end); the match becomes the target range.
+- (sptr_t)searchFrom:(sptr_t)start to:(sptr_t)end needle:(const std::string &)needle options:(PeelFindOptions)options {
+    [_editor message:SCI_SETSEARCHFLAGS wParam:PeelSearchFlags(options)];
+    [_editor message:SCI_SETTARGETSTART wParam:start];
+    [_editor message:SCI_SETTARGETEND wParam:end];
+    return [_editor message:SCI_SEARCHINTARGET wParam:needle.size() lParam:(sptr_t)needle.data()];
+}
+- (BOOL)findText:(NSString *)text backwards:(BOOL)backwards options:(PeelFindOptions)options inclusive:(BOOL)inclusive {
+    if (text.length == 0) return NO;
+    const std::string needle = text.UTF8String;
+    const sptr_t length = [_editor message:SCI_GETLENGTH];
+    const sptr_t selStart = [_editor message:SCI_GETSELECTIONSTART];
+    const sptr_t selEnd = [_editor message:SCI_GETSELECTIONEND];
+    sptr_t found;
+    if (backwards) {
+        found = [self searchFrom:selStart to:0 needle:needle options:options];
+        if (found < 0) found = [self searchFrom:length to:0 needle:needle options:options];
+    } else {
+        found = [self searchFrom:inclusive ? selStart : selEnd to:length needle:needle options:options];
+        if (found < 0) found = [self searchFrom:0 to:length needle:needle options:options];
+    }
+    if (found < 0) return NO;
+    const sptr_t start = [_editor message:SCI_GETTARGETSTART];
+    const sptr_t end = [_editor message:SCI_GETTARGETEND];
+    if (end <= start) return NO;  // empty regular-expression matches cannot advance
+    [_editor message:SCI_ENSUREVISIBLEENFORCEPOLICY wParam:[_editor message:SCI_LINEFROMPOSITION wParam:start]];
+    [_editor message:SCI_SETSEL wParam:start lParam:end];
+    [_editor message:SCI_SCROLLCARET];
+    return YES;
+}
+- (BOOL)replaceText:(NSString *)text withText:(NSString *)replacement options:(PeelFindOptions)options {
+    if (text.length == 0 || ![_editor isEditable]) return NO;
+    const std::string needle = text.UTF8String;
+    const sptr_t selStart = [_editor message:SCI_GETSELECTIONSTART];
+    const sptr_t selEnd = [_editor message:SCI_GETSELECTIONEND];
+    if (selEnd > selStart && [self searchFrom:selStart to:selEnd needle:needle options:options] == selStart &&
+        [_editor message:SCI_GETTARGETEND] == selEnd) {
+        const std::string value = replacement.UTF8String ?: "";
+        [_editor message:SCI_BEGINUNDOACTION];
+        [_editor message:(options & PeelFindOptionRegex) ? SCI_REPLACETARGETRE : SCI_REPLACETARGET
+                  wParam:value.size() lParam:(sptr_t)value.data()];
+        const sptr_t end = [_editor message:SCI_GETTARGETEND];
+        [_editor message:SCI_ENDUNDOACTION];
+        [_editor message:SCI_SETSEL wParam:end lParam:end];
+    }
+    return [self findText:text backwards:NO options:options inclusive:NO];
+}
+- (NSInteger)replaceAllText:(NSString *)text withText:(NSString *)replacement options:(PeelFindOptions)options {
+    if (text.length == 0 || ![_editor isEditable]) return 0;
+    const std::string needle = text.UTF8String;
+    const std::string value = replacement.UTF8String ?: "";
+    NSInteger count = 0;
+    sptr_t position = 0;
+    _updating = YES;  // one change notification for the whole operation
+    [_editor message:SCI_BEGINUNDOACTION];
+    while (count < 1000000 && [self searchFrom:position to:[_editor message:SCI_GETLENGTH] needle:needle options:options] >= 0) {
+        const sptr_t start = [_editor message:SCI_GETTARGETSTART];
+        if ([_editor message:SCI_GETTARGETEND] <= start) break;
+        [_editor message:(options & PeelFindOptionRegex) ? SCI_REPLACETARGETRE : SCI_REPLACETARGET
+                  wParam:value.size() lParam:(sptr_t)value.data()];
+        position = [_editor message:SCI_GETTARGETEND];
+        count++;
+    }
+    [_editor message:SCI_ENDUNDOACTION];
+    _updating = NO;
+    if (count > 0 && self.onChange) self.onChange(self.text);
+    return count;
+}
+- (NSInteger)countMatchesForText:(NSString *)text options:(PeelFindOptions)options current:(NSInteger *)current {
+    if (current) *current = 0;
+    if (text.length == 0) return 0;
+    const std::string needle = text.UTF8String;
+    const sptr_t length = [_editor message:SCI_GETLENGTH];
+    const sptr_t selStart = [_editor message:SCI_GETSELECTIONSTART];
+    const sptr_t selEnd = [_editor message:SCI_GETSELECTIONEND];
+    NSInteger total = 0;
+    sptr_t position = 0;
+    while (total < PeelMatchLimit && position <= length && [self searchFrom:position to:length needle:needle options:options] >= 0) {
+        const sptr_t start = [_editor message:SCI_GETTARGETSTART];
+        const sptr_t end = [_editor message:SCI_GETTARGETEND];
+        if (end <= start) break;
+        total++;
+        if (current && start == selStart && end == selEnd) *current = total;
+        position = end;
+    }
+    return total;
+}
+- (void)goToLine:(NSInteger)line {
+    const sptr_t count = [_editor message:SCI_GETLINECOUNT];
+    const sptr_t target = std::max((sptr_t)0, std::min((sptr_t)line - 1, count - 1));
+    [_editor message:SCI_ENSUREVISIBLEENFORCEPOLICY wParam:target];
+    [_editor message:SCI_GOTOLINE wParam:target];
+    [self focusEditor];
+}
+- (NSInteger)lineCount { return [_editor message:SCI_GETLINECOUNT]; }
+- (void)foldAll:(BOOL)contract {
+    [_editor message:SCI_FOLDALL wParam:contract ? SC_FOLDACTION_CONTRACT : SC_FOLDACTION_EXPAND];
 }
 - (void)insertTextAtEnd:(NSString *)text {
     [_editor message:SCI_GOTOPOS wParam:[_editor message:SCI_GETLENGTH]];

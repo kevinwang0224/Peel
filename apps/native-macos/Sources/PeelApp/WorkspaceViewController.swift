@@ -22,6 +22,10 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     get { actions.saveTemporary }
     set { actions.saveTemporary = newValue }
   }
+  var openURL: ((URL) -> Void)? {
+    get { actions.openURL }
+    set { actions.openURL = newValue }
+  }
   var presentSettings: (() -> Void)? {
     get { actions.presentSettings }
     set { actions.presentSettings = newValue }
@@ -32,13 +36,26 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     sizingOptions = []
     sceneBridgingOptions = [.title]
     actions.deleteRecord = { [weak self] id in self?.confirmDelete(id) }
-
+    presentation.openURL = { [weak self] url in self?.actions.openURL?(url) }
   }
   @MainActor required dynamic init?(coder: NSCoder) { fatalError("Not supported") }
   func installToolbar(on window: NSWindow) {
     let toolbar = WorkspaceWindowToolbar(target: self, temporary: model.temporary)
     windowToolbar = toolbar
     window.toolbar = toolbar.toolbar
+    track(window)
+  }
+  /// Mirror the unsaved-scratch state into the window's native edited dot.
+  private func track(_ window: NSWindow) {
+    window.isDocumentEdited = model.temporary && model.dirty
+    withObservationTracking {
+      _ = model.dirty
+    } onChange: { [weak self, weak window] in
+      Task { @MainActor in
+        guard let self, let window else { return }
+        self.track(window)
+      }
+    }
   }
   @objc func newDocument() {
     guard model.ready, !model.temporary else { return }
@@ -61,10 +78,18 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     view.window?.displayIfNeeded()
   }
   func dismissFind() { presentation.findVisible = false }
-  @objc func showFind() {
-    presentation.findVisible = true
-    presentation.findFocusRequest += 1
+  @objc func showFind() { presentation.showFind() }
+  @objc func showReplace() { presentation.showFind(replace: true) }
+  @objc func findNext() { presentation.find(backwards: false) }
+  @objc func findPrevious() { presentation.find(backwards: true) }
+  @objc func useSelectionForFind() { presentation.useSelectionForFind() }
+  @objc func showGoToLine() {
+    guard model.ready, !model.transitioning else { return }
+    presentation.gotoText = ""
+    presentation.gotoVisible = true
   }
+  @objc func foldAll() { presentation.fold(contract: true) }
+  @objc func unfoldAll() { presentation.fold(contract: false) }
   func showRename() {
     guard model.ready, !model.transitioning else { return }
     presentation.renameText = model.title

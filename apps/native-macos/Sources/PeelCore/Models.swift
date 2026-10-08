@@ -30,6 +30,12 @@ public struct HistorySummary: Identifiable, Sendable {
   public let title: String
   public let updatedAt: String
   public let pinned: Bool
+  public init(id: String, title: String, updatedAt: String, pinned: Bool) {
+    self.id = id
+    self.title = title
+    self.updatedAt = updatedAt
+    self.pinned = pinned
+  }
 }
 public struct AppSettings: Codable, Equatable, Sendable {
   public var theme = "system"
