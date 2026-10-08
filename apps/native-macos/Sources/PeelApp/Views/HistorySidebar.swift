@@ -34,6 +34,22 @@ struct HistorySidebar: View {
       }
     }
     .listStyle(.sidebar)
+    // Native list gestures: double-click renames, right-click shows the menu, and plain
+    // clicks keep selecting the row anywhere (text included).
+    .contextMenu(forSelectionType: String.self) { ids in
+      if let id = ids.first, let record = model.records.first(where: { $0.id == id }) {
+        Button("Rename…", systemImage: "pencil") { rename(id) }
+        Button(record.pinned ? "Unpin" : "Pin", systemImage: record.pinned ? "pin.slash" : "pin") {
+          Task { await model.pin(id) }
+        }
+        Divider()
+        Button("Delete…", systemImage: "trash", role: .destructive) {
+          actions.deleteRecord?(id)
+        }
+      }
+    } primaryAction: { ids in
+      if let id = ids.first { rename(id) }
+    }
     .onDeleteCommand {
       if let id = model.selectedID { actions.deleteRecord?(id) }
     }
@@ -54,31 +70,12 @@ struct HistorySidebar: View {
   private func records(_ values: [HistorySummary]) -> some View {
     ForEach(values) { record in
       HistoryRow(record: record).tag(record.id)
-        .contentShape(Rectangle())
-        .simultaneousGesture(
-          TapGesture(count: 2).onEnded {
-            Task {
-              await model.select(record.id)
-              actions.renameCurrent?()
-            }
-          }
-        )
-        .contextMenu {
-          Button("Rename…", systemImage: "pencil") {
-            Task {
-              await model.select(record.id)
-              actions.renameCurrent?()
-            }
-          }
-          Button(record.pinned ? "Unpin" : "Pin", systemImage: record.pinned ? "pin.slash" : "pin")
-          {
-            Task { await model.pin(record.id) }
-          }
-          Divider()
-          Button("Delete…", systemImage: "trash", role: .destructive) {
-            actions.deleteRecord?(record.id)
-          }
-        }
+    }
+  }
+  private func rename(_ id: String) {
+    Task {
+      await model.select(id)
+      actions.renameCurrent?()
     }
   }
 }
