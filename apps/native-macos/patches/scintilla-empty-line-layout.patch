@@ -1,0 +1,5 @@
+--- a/src/PositionCache.cxx
++++ b/src/PositionCache.cxx
+@@ -433 +433 @@
+-	const bool lastSegItalics = (chars[numCharsBeforeEOL - 1] != ' ') && vstyle.styles[styles[numCharsBeforeEOL - 1]].italic;
++	const bool lastSegItalics = numCharsBeforeEOL > 0 && (chars[numCharsBeforeEOL - 1] != ' ') && vstyle.styles[styles[numCharsBeforeEOL - 1]].italic;
