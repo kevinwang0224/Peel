@@ -74,7 +74,10 @@ final class WorkspacePresentation: ObservableObject {
     }
   }
   func toggleSidebar() {
-    columns = columns == .detailOnly ? .all : .detailOnly
+    // Column visibility only animates inside a SwiftUI transaction; the inspector animates itself.
+    withAnimation(.smooth(duration: 0.25)) {
+      columns = columns == .detailOnly ? .all : .detailOnly
+    }
   }
   func toggleExtraction() {
     if resultVisible, focusedRole != .source {
