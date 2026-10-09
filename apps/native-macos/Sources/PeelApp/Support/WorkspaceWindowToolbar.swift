@@ -44,14 +44,14 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
           Action(
             "history", "Show / Hide History", "sidebar.left",
             #selector(WorkspaceViewController.toggleSidebar), help: "Show / Hide History (⌃⌘S)",
-            navigational: true),
+            navigational: false),
           Action(
             "new", "New JSON", "square.and.pencil", #selector(WorkspaceViewController.newDocument),
-            help: "New JSON (⌘N)", navigational: true),
+            help: "New JSON (⌘N)", navigational: false),
         ]) + [
         Action(
           "open", "Open…", "folder", #selector(WorkspaceViewController.openDocument),
-          help: "Open (⌘O)", navigational: true),
+          help: "Open (⌘O)", navigational: false),
         Action(
           "format", "Format JSON", "text.alignleft",
           #selector(WorkspaceViewController.formatDocument), help: "Format JSON (⇧⌘F)",
@@ -62,9 +62,6 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
         Action(
           "wrap", "Wrap Lines", "arrow.turn.down.right",
           #selector(WorkspaceViewController.toggleWordWrap), help: "Wrap Lines (⌥⌘Z)"),
-        Action(
-          "run", "Run Extraction", "play.fill", #selector(WorkspaceViewController.runExtraction),
-          help: "Run (⌘Return)"),
       ]
       + (temporary
         ? [
@@ -106,10 +103,12 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     guard !temporary else { return identifiers }
     // Keep sidebar items inside the sidebar column and the result toggle over the inspector.
     if let open = identifiers.firstIndex(of: .init("open")) {
-      identifiers.insert(Self.spacer, at: open + 1)
+      identifiers.insert(.sidebarTrackingSeparator, at: open + 1)
     }
     if let last = identifiers.firstIndex(of: .init("extraction")) {
-      identifiers.insert(.inspectorTrackingSeparator, at: last)
+      // The flexible space pushes the toggle to the window's trailing edge, so it stays put
+      // whether the inspector is shown or hidden.
+      identifiers.insert(contentsOf: [.inspectorTrackingSeparator, .flexibleSpace], at: last)
     }
     return identifiers
   }
@@ -129,20 +128,23 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     updateSpacer()
   }
   private func updateSpacer() {
-    guard let split, let first = split.arrangedSubviews.first,
-      let view = spacerView, view.window != nil
-    else { return }
+    guard let split, let first = split.arrangedSubviews.first, let view = spacerView else { return }
     let edge = first.isHidden ? 0 : first.frame.width
     // The spacer's leading edge depends only on the fixed items before it, never on its own
     // width, so it is stable while the sidebar is dragged. Measure once and reuse it.
     if leadingInset == nil {
+      guard view.window != nil else { return }
       let minX = view.convert(view.bounds, to: nil).minX
       guard minX > 0 else { return }
       leadingInset = minX
     }
-    view.currentWidth = max(0, edge - (leadingInset ?? 0) - 8)
+    let width = max(0, edge - (leadingInset ?? 0) - 8)
+    view.currentWidth = width
+    // A zero-width spacer would still cost two item gaps, so drop it from the layout entirely.
+    if #available(macOS 15.0, *) { spacerItem?.isHidden = width <= 0 }
   }
   private var spacerView: SpacerView?
+  private weak var spacerItem: NSToolbarItem?
   private var leadingInset: CGFloat?
   private final class SpacerView: NSView {
     var currentWidth: CGFloat = 1 {
@@ -176,9 +178,12 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
       let item = NSToolbarItem(itemIdentifier: identifier)
       let view = SpacerView(frame: .zero)
       spacerView = view
+      spacerItem = item
       item.view = view
-      item.isNavigational = true
+      item.isNavigational = false
       item.visibilityPriority = .high
+      // Layout-only spacer: opt out of the Liquid Glass capsule drawn behind view items.
+      item.isBordered = false
       return item
     }
     guard let action = actions.first(where: { $0.id == identifier }) else { return nil }
@@ -189,14 +194,12 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     item.image = NSImage(systemSymbolName: action.symbol, accessibilityDescription: action.title)
     item.target = target
     item.action = action.selector
-    item.visibilityPriority = .high
+    // The sidebar trio must never be the first thing pushed into the overflow menu.
+    item.visibilityPriority = ["history", "new", "open"].contains(identifier.rawValue) ? .user : .high
     item.isNavigational = action.navigational
     if identifier.rawValue == "wrap" {
       wrapItem = item
       applyWrapAppearance(WrapPreference.shared.enabled)
-    }
-    if #available(macOS 26.0, *), identifier.rawValue == "run" {
-      item.style = .prominent
     }
     return item
   }

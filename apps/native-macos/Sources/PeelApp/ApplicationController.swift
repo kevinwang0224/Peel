@@ -352,6 +352,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     scheduleMemoryCleanup()
     currentSettings = settings
     settingsReady = true
+    // `preferredColorScheme(nil)` doesn't clear a previously forced window appearance on macOS,
+    // so the app-wide appearance is owned here; nil follows the system immediately.
+    NSApp.appearance =
+      switch settings.theme {
+      case "dark": NSAppearance(named: .darkAqua)
+      case "light": NSAppearance(named: .aqua)
+      default: nil
+      }
     mainWindow?.model.settings = settings
     for controller in scratchWindows.values { controller.model.settings = settings }
     if settingsRequested {

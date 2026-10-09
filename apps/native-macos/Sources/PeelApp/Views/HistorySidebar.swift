@@ -104,7 +104,7 @@ struct HistorySidebar: View {
       }
     }
     .disabled(!model.ready)
-    .navigationSplitViewColumnWidth(min: 210, ideal: 240, max: 320)
+    .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 320)
   }
   @ViewBuilder
   private func menu(for ids: Set<String>) -> some View {

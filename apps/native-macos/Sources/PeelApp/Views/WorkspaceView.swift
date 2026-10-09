@@ -7,18 +7,10 @@ struct WorkspaceView: View {
   @ObservedObject var presentation: WorkspacePresentation
   let actions: WorkspaceActions
 
-  private var theme: ColorScheme? {
-    model.settings.theme == "system" ? nil : model.settings.theme == "dark" ? .dark : .light
-  }
   private var title: Binding<String> {
     Binding(
       get: { model.temporary && model.title == "Untitled" ? "Scratch" : model.title },
       set: { model.rename($0) })
-  }
-  private var subtitle: String {
-    guard let summary = model.summary else { return "" }
-    return
-      "\(summary.rootType) · \(summary.keyCount) keys · \(ByteCountFormatter.string(fromByteCount: Int64(summary.byteSize), countStyle: .file))"
   }
   var body: some View {
     Group {
@@ -37,7 +29,6 @@ struct WorkspaceView: View {
     }
     .toolbar(removing: .sidebarToggle)
     .navigationTitle(title)
-    .navigationSubtitle(subtitle)
     .alert("Rename JSON", isPresented: $presentation.renameVisible) {
       TextField("Title", text: $presentation.renameText)
       Button("Cancel", role: .cancel) {}
@@ -56,7 +47,6 @@ struct WorkspaceView: View {
     } message: {
       Text(model.error ?? "")
     }
-    .preferredColorScheme(theme)
   }
 }
 
@@ -73,6 +63,9 @@ private struct WorkspaceDetail: View {
         .accessibilityLabel("JSON source")
       SourceStatus(model: model, presentation: presentation)
     }
+    // The editor stops below the toolbar; paint the same surface behind the toolbar so scrolled
+    // text doesn't meet a differently tinted band.
+    .background(Color(nsColor: .textBackgroundColor).ignoresSafeArea(.container, edges: .top))
     .animation(.easeOut(duration: 0.15), value: presentation.findVisible)
     .frame(minWidth: 360)
     .inspector(isPresented: $presentation.resultVisible) {

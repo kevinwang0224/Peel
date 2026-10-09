@@ -5,9 +5,6 @@ import SwiftUI
 struct SettingsView: View {
   @ObservedObject var draft: SettingsDraft
   let changed: () -> Void
-  private var theme: ColorScheme? {
-    draft.value.theme == "system" ? nil : draft.value.theme == "dark" ? .dark : .light
-  }
   var body: some View {
     Form {
       Section("Editor") {
@@ -34,7 +31,6 @@ struct SettingsView: View {
     }
     .formStyle(.grouped)
     .onChange(of: draft.value) { changed() }
-    .preferredColorScheme(theme)
     .frame(width: 460, height: 300)
   }
 }

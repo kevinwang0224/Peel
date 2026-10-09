@@ -1,6 +1,9 @@
 import PeelCore
 import SwiftUI
 
+/// Inspector content: write an expression, read the result. Input comes first so the panel
+/// reads top-to-bottom, and each editor sits in a rounded card that follows the window's
+/// Liquid Glass chrome instead of full-bleed panes divided by flat status bars.
 @MainActor
 struct ExtractionPanel: View {
   let model: WorkspaceModel
@@ -9,6 +12,8 @@ struct ExtractionPanel: View {
     Binding(get: { model.extraction.mode }, set: { model.setMode($0) })
   }
   private var failed: Bool { model.result.status == "error" }
+  private var idle: Bool { model.result.status == "idle" }
+  private var disabled: Bool { !model.ready || model.transitioning }
   private var status: String {
     if model.busy { return "Running…" }
     switch model.result.status {
@@ -17,45 +22,85 @@ struct ExtractionPanel: View {
     default: return "Extraction complete"
     }
   }
+  private var statusSymbol: String {
+    failed ? "exclamationmark.triangle.fill" : idle ? "circle.dashed" : "checkmark.circle.fill"
+  }
+
   var body: some View {
-    VSplitView {
-      VStack(spacing: 0) {
-        NativeEditor(model: model, presentation: presentation, role: .result)
-          .accessibilityLabel("Extraction result")
-        HStack(spacing: 6) {
-          if model.busy { ProgressView().controlSize(.mini) }
-          Text(status).lineLimit(1)
-          Spacer(minLength: 0)
-          Text("Read only")
+    VStack(spacing: 14) {
+      VStack(alignment: .leading, spacing: 8) {
+        expressionHeader
+        EditorCard {
+          NativeEditor(model: model, presentation: presentation, role: .expression)
+            .accessibilityLabel("Extraction expression")
         }
-        .font(.caption)
-        .foregroundStyle(failed ? Color.red : Color.secondary)
-        .padding(.horizontal, 12).frame(height: 24)
-        .background(.bar)
+        .frame(minHeight: 72, idealHeight: 120, maxHeight: 200)
       }
-      .frame(minHeight: 120)
-      VStack(spacing: 0) {
-        HStack(spacing: 10) {
-          Picker("Mode", selection: mode) {
-            Text("JS").tag(ExtractionMode.javascript)
-            Text("JSONPath").tag(ExtractionMode.jsonpath)
-          }
-          .pickerStyle(.segmented).labelsHidden().fixedSize()
-          .disabled(!model.ready || model.transitioning)
-          Spacer(minLength: 4)
-          if (model.summary?.byteSize ?? 0) > 1024 * 1024 {
-            Text("Large file: run manually").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-          }
-          Button("Run", systemImage: "play.fill") { model.run() }
-            .controlSize(.small).disabled(!model.ready || model.transitioning)
-            .help("Run (⌘Return)")
+      VStack(alignment: .leading, spacing: 8) {
+        resultHeader
+        EditorCard {
+          NativeEditor(model: model, presentation: presentation, role: .result)
+            .accessibilityLabel("Extraction result")
         }
-        .controlSize(.small).padding(.horizontal, 12).frame(height: 32)
-        .background(.bar)
-        NativeEditor(model: model, presentation: presentation, role: .expression)
-          .accessibilityLabel("Extraction expression")
+        .frame(minHeight: 120, maxHeight: .infinity)
       }
-      .frame(minHeight: 100, idealHeight: 150)
+    }
+    .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
+  }
+
+  private var expressionHeader: some View {
+    HStack(spacing: 10) {
+      Picker("Mode", selection: mode) {
+        Text("JS").tag(ExtractionMode.javascript)
+        Text("JSONPath").tag(ExtractionMode.jsonpath)
+      }
+      .pickerStyle(.segmented).labelsHidden().fixedSize()
+      .disabled(disabled)
+      Spacer(minLength: 4)
+      if (model.summary?.byteSize ?? 0) > 1024 * 1024 {
+        Text("Large file: run manually").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+      }
+      Button { model.run() } label: { Label("Run", systemImage: "play.fill") }
+        .glassButton().disabled(disabled)
+        .help("Run (⌘Return)")
+    }
+    .controlSize(.small)
+  }
+
+  private var resultHeader: some View {
+    HStack(spacing: 6) {
+      if model.busy {
+        ProgressView().controlSize(.mini)
+      } else {
+        Image(systemName: statusSymbol)
+          .foregroundStyle(failed ? Color.red : idle ? Color.secondary : Color.green)
+      }
+      Text(status).lineLimit(1)
+      Spacer(minLength: 0)
+    }
+    .font(.caption).foregroundStyle(failed ? Color.red : Color.secondary)
+    .padding(.horizontal, 2)
+  }
+}
+
+/// Rounded, hairline-stroked container for an AppKit editor.
+private struct EditorCard<Content: View>: View {
+  @ViewBuilder let content: Content
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+    content
+      .clipShape(shape)
+      .overlay(shape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
+  }
+}
+
+extension View {
+  /// Liquid Glass button where available, standard bordered button before macOS 26.
+  @ViewBuilder fileprivate func glassButton() -> some View {
+    if #available(macOS 26.0, *) {
+      self.buttonStyle(.glass)
+    } else {
+      self.buttonStyle(.bordered)
     }
   }
 }

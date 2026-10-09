@@ -49,6 +49,32 @@ static NSString *PeelEditorFontName(void) {
     });
     return name;
 }
+// Chevron fold markers: Scintilla's built-in arrows look like triangles from another UI era.
+// Render straight-alpha RGBA at 2x so the glyph matches the line-number color and stays crisp.
+static const int PeelFoldGlyphPixels = 24;
+static NSData *PeelChevronPixels(BOOL expanded, NSColor *color) {
+    const int n = PeelFoldGlyphPixels;
+    NSMutableData *coverage = [NSMutableData dataWithLength:n * n];
+    CGContextRef gc = CGBitmapContextCreate(coverage.mutableBytes, n, n, 8, n, NULL, (CGBitmapInfo)kCGImageAlphaOnly);
+    CGContextSetLineWidth(gc, 2.6);
+    CGContextSetLineCap(gc, kCGLineCapRound);
+    CGContextSetLineJoin(gc, kCGLineJoinRound);
+    CGContextSetGrayStrokeColor(gc, 0, 1);
+    if (expanded) { // y is up: the apex sits below the arms
+        CGContextMoveToPoint(gc, 6, 15); CGContextAddLineToPoint(gc, 12, 9); CGContextAddLineToPoint(gc, 18, 15);
+    } else {
+        CGContextMoveToPoint(gc, 9, 18); CGContextAddLineToPoint(gc, 15, 12); CGContextAddLineToPoint(gc, 9, 6);
+    }
+    CGContextStrokePath(gc);
+    CGContextRelease(gc);
+    NSColor *rgb = [color colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+    unsigned char r = lround(rgb.redComponent * 255), g = lround(rgb.greenComponent * 255), b = lround(rgb.blueComponent * 255);
+    NSMutableData *pixels = [NSMutableData dataWithLength:n * n * 4];
+    unsigned char *out = (unsigned char *)pixels.mutableBytes;
+    const unsigned char *in = (const unsigned char *)coverage.bytes;
+    for (int i = 0; i < n * n; i++) { out[i * 4] = r; out[i * 4 + 1] = g; out[i * 4 + 2] = b; out[i * 4 + 3] = in[i]; }
+    return pixels;
+}
 static const int PeelErrorAnnotationStyle = 60;
 static const NSInteger PeelMatchLimit = 10000;
 
@@ -145,6 +171,12 @@ static const NSInteger PeelMatchLimit = 10000;
                                                      name:NSSystemColorsDidChangeNotification object:nil];
     }
     return self;
+}
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    // Scintilla copies colors once, so repaint them whenever the view's real appearance flips.
+    _configured = NO;
+    [self configureLanguage:_language dark:_dark fontSize:_fontSize readOnly:_readOnly];
 }
 - (void)systemColorsChanged:(NSNotification *)notification {
     // Accent and selection colors are copied into Scintilla; refresh them when the user changes them.
@@ -255,6 +287,8 @@ static const NSInteger PeelMatchLimit = 10000;
 - (void)configureLanguage:(NSString *)language dark:(BOOL)dark fontSize:(NSInteger)fontSize readOnly:(BOOL)readOnly {
     if (_editor.isEditable == readOnly) [_editor setEditable:!readOnly];
     _readOnly = readOnly;
+    // The view's effective appearance is the source of truth; SwiftUI's colorScheme can lag behind it.
+    dark = [self.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]] == NSAppearanceNameDarkAqua;
     if (_configured && [_language isEqualToString:language] && _fontSize == fontSize && _dark == dark &&
         _appliedRecessed == _recessed) return;
     _configured = YES; _fontSize = fontSize; _dark = dark; _appliedRecessed = _recessed;
@@ -284,6 +318,15 @@ static const NSInteger PeelMatchLimit = 10000;
             [_editor setColorProperty:SCI_MARKERSETFORE parameter:marker value:PeelOpaqueColor([NSColor tertiaryLabelColor], background)];
             [_editor setColorProperty:SCI_MARKERSETBACK parameter:marker value:background];
         }
+        NSColor *chevron = PeelOpaqueColor([NSColor tertiaryLabelColor], background);
+        NSData *collapsed = PeelChevronPixels(NO, chevron), *expanded = PeelChevronPixels(YES, chevron);
+        [_editor message:SCI_RGBAIMAGESETWIDTH wParam:PeelFoldGlyphPixels];
+        [_editor message:SCI_RGBAIMAGESETHEIGHT wParam:PeelFoldGlyphPixels];
+        [_editor message:SCI_RGBAIMAGESETSCALE wParam:200];
+        for (int marker : {SC_MARKNUM_FOLDEREND, SC_MARKNUM_FOLDER})
+            [_editor message:SCI_MARKERDEFINERGBAIMAGE wParam:marker lParam:(sptr_t)collapsed.bytes];
+        for (int marker : {SC_MARKNUM_FOLDEROPENMID, SC_MARKNUM_FOLDEROPEN})
+            [_editor message:SCI_MARKERDEFINERGBAIMAGE wParam:marker lParam:(sptr_t)expanded.bytes];
         // Same wParam limitation as the caret line: SCI_SETCARETFORE always produced black.
         NSColor *caret = dark ? [NSColor colorWithSRGBRed:0.78 green:0.79 blue:0.79 alpha:1]
                               : [NSColor colorWithSRGBRed:0.16 green:0.17 blue:0.18 alpha:1];
@@ -298,6 +341,9 @@ static const NSInteger PeelMatchLimit = 10000;
         [_editor setColorProperty:SCI_STYLESETBACK parameter:PeelErrorAnnotationStyle
                             value:PeelBlend([NSColor systemRedColor], background, 0.10)];
         [_editor message:SCI_SETCARETLINEVISIBLE wParam:1];
+        // A wrapped long line (minified JSON) otherwise tints every screen row it spans, so scrolling
+        // shows a lighter slab next to the untinted gutter; highlight only the row holding the caret.
+        [_editor message:SCI_SETCARETLINEHIGHLIGHTSUBLINE wParam:1];
         // SCI_SETCARETLINEBACK takes the colour in wParam, which setColorProperty cannot express
         // (it was always black). Set the element colour directly with an opaque blend of the
         // text colour over the background, a soft gray in dark mode.
