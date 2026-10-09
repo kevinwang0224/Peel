@@ -15,7 +15,10 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     let size = model.temporary ? NSSize(width: 940, height: 620) : NSSize(width: 1280, height: 820)
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: size),
-      styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false
+      // fullSizeContentView lets the SwiftUI split view own the safe area under the toolbar; without it
+      // the system's titlebar scroll pocket is drawn over the first 52pt of the detail content.
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered, defer: false
     )
     window.title = model.temporary ? "Peel — Scratch" : "Peel"
     window.isReleasedWhenClosed = false

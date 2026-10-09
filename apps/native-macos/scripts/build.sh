@@ -4,7 +4,11 @@ native_root="$(cd "$(dirname "$0")/.." && pwd)"
 configuration="${1:-release}"
 if [[ "$(uname -m)" != "arm64" ]]; then echo "Peel Native currently targets Apple Silicon." >&2; exit 1; fi
 bash "$native_root/scripts/prepare-dependencies.sh"
-swift build --package-path "$native_root" -c "$configuration"
+# Keep the deployment target at macOS 14 but record the current SDK in LC_BUILD_VERSION,
+# otherwise macOS treats the binary as built with an old SDK and skips the Liquid Glass design.
+sdk_version="$(xcrun --show-sdk-version)"
+link_flags=(-Xlinker -platform_version -Xlinker macos -Xlinker 14.0 -Xlinker "$sdk_version")
+swift build --package-path "$native_root" -c "$configuration" "${link_flags[@]}"
 bin_dir="$(swift build --package-path "$native_root" -c "$configuration" --show-bin-path)"
 app_path="$native_root/build/Peel Native.app"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
