@@ -344,6 +344,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   @objc func rename(_ sender: Any?) { activeWindow?.workspace.showRename() }
   @objc func toggleSidebar(_ sender: Any?) { activeWindow?.workspace.toggleSidebar() }
   @objc func toggleExtraction(_ sender: Any?) { activeWindow?.workspace.toggleExtraction() }
+  @objc func toggleWordWrap(_ sender: Any?) { WrapPreference.shared.enabled.toggle() }
   private func publishSettings(_ settings: AppSettings) {
     scheduleMemoryCleanup()
     currentSettings = settings
@@ -491,6 +492,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         "Show / Hide Sidebar", #selector(toggleSidebar(_:)), key: "s",
         modifiers: [.command, .control]))
     view.addItem(item("Show / Hide Extraction", #selector(toggleExtraction(_:))))
+    view.addItem(
+      item("Wrap Lines", #selector(toggleWordWrap(_:)), key: "z", modifiers: [.command, .option]))
     view.addItem(.separator())
     view.addItem(item("Focus Source", #selector(focusSource(_:)), key: "1"))
     view.addItem(item("Focus Expression", #selector(focusExpression(_:)), key: "2"))
@@ -532,5 +535,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     entry.target =
       target ?? (responderSelectors.contains(NSStringFromSelector(action)) ? nil : self)
     return entry
+  }
+}
+
+extension ApplicationController: NSMenuItemValidation {
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    if item.action == #selector(toggleWordWrap(_:)) {
+      item.state = WrapPreference.shared.enabled ? .on : .off
+    }
+    return true
   }
 }

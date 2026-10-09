@@ -1,16 +1,19 @@
 import Foundation
 
 public enum HistoryGroup: Hashable, Sendable {
-  case pinned, today, yesterday, previous7Days, earlier
+  case pinned, today, yesterday, previous7Days, previous30Days, expired
   public var title: String {
     switch self {
     case .pinned: "Pinned"
     case .today: "Today"
     case .yesterday: "Yesterday"
     case .previous7Days: "Previous 7 Days"
-    case .earlier: "Earlier"
+    case .previous30Days: "Previous 30 Days"
+    case .expired: "Older Than 30 Days"
     }
   }
+  /// Records in this group are old enough to be folded away by default.
+  public var isExpired: Bool { self == .expired }
 }
 
 public struct HistorySection: Identifiable, Sendable {
@@ -41,22 +44,29 @@ public enum HistoryGrouping {
     for record in records {
       buckets[group(for: record, today: today, calendar: calendar), default: []].append(record)
     }
-    return [.pinned, .today, .yesterday, .previous7Days, .earlier].compactMap { group in
+    return [.pinned, .today, .yesterday, .previous7Days, .previous30Days, .expired].compactMap { group in
       buckets[group].map { HistorySection(group: group, records: $0) }
     }
+  }
+  public static func group(
+    for record: HistorySummary, now: Date = Date(), calendar: Calendar = .current
+  ) -> HistoryGroup {
+    group(for: record, today: calendar.startOfDay(for: now), calendar: calendar)
   }
   private static func group(for record: HistorySummary, today: Date, calendar: Calendar)
     -> HistoryGroup
   {
     if record.pinned { return .pinned }
-    guard let date = record.updatedDate else { return .earlier }
+    // An unreadable date must never hide a record inside a collapsed section.
+    guard let date = record.updatedDate else { return .previous30Days }
     let days =
       calendar.dateComponents([.day], from: calendar.startOfDay(for: date), to: today).day ?? 0
     switch days {
     case ..<1: return .today
     case 1: return .yesterday
     case 2...7: return .previous7Days
-    default: return .earlier
+    case 8...30: return .previous30Days
+    default: return .expired
     }
   }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import PeelEditor
 import SwiftUI
 
@@ -10,6 +11,16 @@ final class CursorState: ObservableObject {
   func update(line: Int, column: Int) {
     if self.line != line { self.line = line }
     if self.column != column { self.column = column }
+  }
+}
+
+/// Line wrapping is one preference shared by every window and both read panes.
+@MainActor
+final class WrapPreference: ObservableObject {
+  static let shared = WrapPreference()
+  private static let key = "peel.wordWrap"
+  @Published var enabled = UserDefaults.standard.bool(forKey: key) {
+    didSet { UserDefaults.standard.set(enabled, forKey: Self.key) }
   }
 }
 
@@ -32,6 +43,16 @@ final class WorkspacePresentation: ObservableObject {
   @Published var gotoVisible = false
   @Published var gotoText = ""
   let cursor = CursorState()
+  private var wrapObserver: AnyCancellable?
+  var wordWrap: Bool {
+    get { WrapPreference.shared.enabled }
+    set { WrapPreference.shared.enabled = newValue }
+  }
+  init() {
+    wrapObserver = WrapPreference.shared.objectWillChange.sink { [weak self] _ in
+      self?.objectWillChange.send()
+    }
+  }
   var openURL: ((URL) -> Void)?
   @Published var columns: NavigationSplitViewVisibility = .all
   @Published private(set) var focusedRole: EditorRole = .source
@@ -164,7 +185,7 @@ final class WorkspaceActions {
   var exportFile: (() -> Void)?
   var saveTemporary: (() -> Void)?
   var presentSettings: (() -> Void)?
-  var deleteRecord: ((String) -> Void)?
+  var deleteRecords: (([String]) -> Void)?
   var openURL: ((URL) -> Void)?
   var renameCurrent: (() -> Void)?
 }

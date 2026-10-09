@@ -205,17 +205,18 @@ final class WorkspaceModel {
       return false
     }
   }
-  func remove(_ id: String) async {
-    guard ready, !transitioning else { return }
+  func remove(_ id: String) async { await remove([id]) }
+  func remove(_ ids: [String]) async {
+    guard ready, !transitioning, !ids.isEmpty else { return }
     do {
-      if selectedID == id {
+      if let current = selectedID, ids.contains(current) {
         stopTasks()
         dirty = false
         selectedID = nil
         record = nil
         text = ""
       }
-      try await store.delete(id: id)
+      for id in ids { try await store.delete(id: id) }
       await refresh()
       if selectedID == nil {
         if let next = records.first { await select(next.id) } else { await create() }
@@ -230,6 +231,20 @@ final class WorkspaceModel {
       value.pinned.toggle()
       try await store.save(value)
       if id == selectedID { record = value }
+      await refresh()
+    } catch { self.error = error.localizedDescription }
+  }
+  /// Pins or unpins several records at once.
+  func setPinned(_ ids: [String], pinned: Bool) async {
+    guard ready, !transitioning, !ids.isEmpty else { return }
+    guard await flush() else { return }
+    do {
+      for id in ids {
+        guard var value = try await store.record(id: id), value.pinned != pinned else { continue }
+        value.pinned = pinned
+        try await store.save(value)
+        if id == selectedID { record = value }
+      }
       await refresh()
     } catch { self.error = error.localizedDescription }
   }

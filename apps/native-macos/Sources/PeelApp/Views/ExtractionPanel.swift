@@ -4,7 +4,7 @@ import SwiftUI
 @MainActor
 struct ExtractionPanel: View {
   let model: WorkspaceModel
-  let presentation: WorkspacePresentation
+  @ObservedObject var presentation: WorkspacePresentation
   private var mode: Binding<ExtractionMode> {
     Binding(get: { model.extraction.mode }, set: { model.setMode($0) })
   }

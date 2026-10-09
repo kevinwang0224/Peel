@@ -36,7 +36,7 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     sizingOptions = []
     sceneBridgingOptions = [.title]
     actions.renameCurrent = { [weak self] in self?.showRename() }
-    actions.deleteRecord = { [weak self] id in self?.confirmDelete(id) }
+    actions.deleteRecords = { [weak self] ids in self?.confirmDelete(ids) }
     presentation.openURL = { [weak self] url in self?.actions.openURL?(url) }
   }
   @MainActor required dynamic init?(coder: NSCoder) { fatalError("Not supported") }
@@ -73,6 +73,7 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
       if presentation.source?.editor != nil { break }
       try? await Task.sleep(for: .milliseconds(10))
     }
+    windowToolbar?.bindSplitView(in: view)
     presentation.synchronizeEditors()
     presentation.source?.editor?.focusEditor()
     view.window?.toolbar?.validateVisibleItems()
@@ -103,15 +104,17 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     presentation.toggleSidebar()
   }
   @objc func toggleExtraction() { presentation.toggleExtraction() }
-  private func confirmDelete(_ id: String) {
-    guard let window = view.window else { return }
+  @objc func toggleWordWrap() { presentation.wordWrap.toggle() }
+  private func confirmDelete(_ ids: [String]) {
+    guard let window = view.window, !ids.isEmpty else { return }
     let alert = NSAlert()
-    alert.messageText = "Delete this history record?"
+    alert.messageText =
+      ids.count == 1 ? "Delete this history record?" : "Delete \(ids.count) history records?"
     alert.addButton(withTitle: "Delete")
     alert.addButton(withTitle: "Cancel")
     alert.beginSheetModal(for: window) { [weak self] response in
       guard response == .alertFirstButtonReturn, let self else { return }
-      Task { await self.model.remove(id) }
+      Task { await self.model.remove(ids) }
     }
   }
   /// Diagnostic insertion + AppKit redraw, excluding keyboard dispatch/display scan-out.

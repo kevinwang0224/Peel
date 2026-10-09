@@ -118,6 +118,9 @@ static const NSInteger PeelMatchLimit = 10000;
         [_editor message:SCI_SETMARGINMASKN wParam:1 lParam:SC_MASK_FOLDERS];
         [_editor message:SCI_SETMARGINWIDTHN wParam:1 lParam:16];
         [_editor message:SCI_SETMARGINSENSITIVEN wParam:1 lParam:1];
+        // Scintilla shows a mirrored arrow over margins; keep the standard arrow like the rest of the app.
+        [_editor message:SCI_SETMARGINCURSORN wParam:0 lParam:SC_CURSORARROW];
+        [_editor message:SCI_SETMARGINCURSORN wParam:1 lParam:SC_CURSORARROW];
         [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEREND lParam:SC_MARK_ARROW];
         [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDEROPENMID lParam:SC_MARK_ARROWDOWN];
         [_editor message:SCI_MARKERDEFINE wParam:SC_MARKNUM_FOLDERMIDTAIL lParam:SC_MARK_EMPTY];
@@ -154,11 +157,12 @@ static const NSInteger PeelMatchLimit = 10000;
     ((PeelContentView *)_editor.content).peelOwner = nil;
 }
 - (NSString *)selectedText {
+    // Unlike the documentation, this Scintilla build returns the byte count without the terminator.
     const sptr_t length = [_editor message:SCI_GETSELTEXT];
-    if (length <= 1) return @"";
-    std::string buffer(length, '\0');
+    if (length <= 0) return @"";
+    std::string buffer((size_t)length + 1, '\0');
     [_editor message:SCI_GETSELTEXT wParam:0 lParam:(sptr_t)buffer.data()];
-    return [[NSString alloc] initWithBytes:buffer.data() length:length - 1 encoding:NSUTF8StringEncoding] ?: @"";
+    return [[NSString alloc] initWithBytes:buffer.data() length:(NSUInteger)length encoding:NSUTF8StringEncoding] ?: @"";
 }
 - (NSString *)text {
     const sptr_t length = [_editor message:SCI_GETLENGTH];
@@ -192,6 +196,16 @@ static const NSInteger PeelMatchLimit = 10000;
     [_editor message:SCI_REPLACETARGET wParam:length lParam:(sptr_t)text.UTF8String];
     [_editor message:SCI_GOTOPOS wParam:start + length];
     [_editor message:SCI_ENDUNDOACTION];
+}
+- (void)setWrapsLines:(BOOL)wraps {
+    if (_wrapsLines == wraps) return;
+    _wrapsLines = wraps;
+    // Keep the same document line at the top across the layout change.
+    const sptr_t top = [_editor message:SCI_DOCLINEFROMVISIBLE wParam:[_editor message:SCI_GETFIRSTVISIBLELINE]];
+    [_editor message:SCI_SETWRAPMODE wParam:wraps ? SC_WRAP_WORD : SC_WRAP_NONE];
+    [_editor message:SCI_SETWRAPINDENTMODE wParam:SC_WRAPINDENT_SAME];
+    [_editor message:SCI_SETXOFFSET wParam:0];
+    [_editor message:SCI_SETFIRSTVISIBLELINE wParam:[_editor message:SCI_VISIBLEFROMDOCLINE wParam:top]];
 }
 - (void)loadDocument:(NSString *)text {
     self.text = text;
@@ -270,7 +284,11 @@ static const NSInteger PeelMatchLimit = 10000;
             [_editor setColorProperty:SCI_MARKERSETFORE parameter:marker value:PeelOpaqueColor([NSColor tertiaryLabelColor], background)];
             [_editor setColorProperty:SCI_MARKERSETBACK parameter:marker value:background];
         }
-        [_editor setColorProperty:SCI_SETCARETFORE parameter:0 value:[NSColor textInsertionPointColor]];
+        // Same wParam limitation as the caret line: SCI_SETCARETFORE always produced black.
+        NSColor *caret = dark ? [NSColor colorWithSRGBRed:0.78 green:0.79 blue:0.79 alpha:1]
+                              : [NSColor colorWithSRGBRed:0.16 green:0.17 blue:0.18 alpha:1];
+        [_editor message:SCI_SETELEMENTCOLOUR wParam:SC_ELEMENT_CARET lParam:PeelPackedRGBA(caret)];
+        [_editor message:SCI_SETCARETWIDTH wParam:2];
         [_editor setColorProperty:SCI_SETSELBACK parameter:1 value:[NSColor selectedTextBackgroundColor]];
         // Selection in a window or pane without focus is gray, as in AppKit text views.
         [_editor message:SCI_SETELEMENTCOLOUR wParam:SC_ELEMENT_SELECTION_INACTIVE_BACK
@@ -280,8 +298,11 @@ static const NSInteger PeelMatchLimit = 10000;
         [_editor setColorProperty:SCI_STYLESETBACK parameter:PeelErrorAnnotationStyle
                             value:PeelBlend([NSColor systemRedColor], background, 0.10)];
         [_editor message:SCI_SETCARETLINEVISIBLE wParam:1];
-        [_editor setColorProperty:SCI_SETCARETLINEBACK parameter:0 value:[NSColor quaternaryLabelColor]];
-        [_editor message:SCI_SETCARETLINEBACKALPHA wParam:18];
+        // SCI_SETCARETLINEBACK takes the colour in wParam, which setColorProperty cannot express
+        // (it was always black). Set the element colour directly with an opaque blend of the
+        // text colour over the background, a soft gray in dark mode.
+        [_editor message:SCI_SETELEMENTCOLOUR wParam:SC_ELEMENT_CARET_LINE_BACK
+                  lParam:PeelPackedRGBA(PeelBlend(foreground, background, dark ? 0.095 : 0.05))];
         BOOL json = [language isEqualToString:@"json"];
         [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_STRING : SCE_C_STRING value:dark ? [NSColor colorWithSRGBRed:0.55 green:0.77 blue:0.65 alpha:1] : [NSColor colorWithSRGBRed:0.20 green:0.43 blue:0.34 alpha:1]];
         [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_PROPERTYNAME : SCE_C_CHARACTER value:dark ? [NSColor colorWithSRGBRed:0.55 green:0.70 blue:0.91 alpha:1] : [NSColor colorWithSRGBRed:0.22 green:0.37 blue:0.57 alpha:1]];

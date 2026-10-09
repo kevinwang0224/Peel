@@ -17,6 +17,8 @@ typedef NS_OPTIONS(NSUInteger, PeelFindOptions) {
 @property(copy, nullable) void (^onDropFile)(NSString *path);
 /// Slightly recessed surface for read-only output.
 @property(nonatomic) BOOL recessed;
+/// Soft-wraps long lines at the viewport edge instead of scrolling horizontally.
+@property(nonatomic) BOOL wrapsLines;
 - (void)configureLanguage:(NSString *)language dark:(BOOL)dark fontSize:(NSInteger)fontSize readOnly:(BOOL)readOnly;
 - (void)loadDocument:(NSString *)text;
 - (void)markErrorAtByte:(NSInteger)offset message:(nullable NSString *)message reveal:(BOOL)reveal;

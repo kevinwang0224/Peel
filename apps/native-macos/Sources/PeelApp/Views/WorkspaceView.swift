@@ -71,7 +71,7 @@ private struct WorkspaceDetail: View {
       }
       NativeEditor(model: model, presentation: presentation, role: .source)
         .accessibilityLabel("JSON source")
-      SourceStatus(model: model, cursor: presentation.cursor)
+      SourceStatus(model: model, presentation: presentation)
     }
     .animation(.easeOut(duration: 0.15), value: presentation.findVisible)
     .frame(minWidth: 360)
@@ -85,7 +85,7 @@ private struct WorkspaceDetail: View {
 @MainActor
 private struct SourceStatus: View {
   let model: WorkspaceModel
-  @ObservedObject var cursor: CursorState
+  @ObservedObject var presentation: WorkspacePresentation
   private var text: String {
     if let issue = model.issue { return issue.localizedDescription }
     guard let summary = model.summary else { return model.ready ? "JSON" : "Opening…" }
@@ -106,10 +106,18 @@ private struct SourceStatus: View {
       .foregroundStyle(model.issue == nil ? Color.secondary : Color.red)
       .help(model.issue == nil ? "" : "Jump to the error")
       Spacer(minLength: 0)
-      Text("Ln \(cursor.line), Col \(cursor.column)")
-        .monospacedDigit().foregroundStyle(.secondary)
+      CursorLabel(cursor: presentation.cursor)
     }
     .font(.caption).padding(.horizontal, 12).frame(height: 24)
     .background(.bar)
+  }
+}
+
+@MainActor
+private struct CursorLabel: View {
+  @ObservedObject var cursor: CursorState
+  var body: some View {
+    Text("Ln \(cursor.line), Col \(cursor.column)")
+      .monospacedDigit().foregroundStyle(.secondary)
   }
 }

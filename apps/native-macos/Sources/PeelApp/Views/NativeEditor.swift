@@ -1,5 +1,6 @@
 import PeelCore
 import PeelEditor
+import Combine
 import SwiftUI
 
 enum EditorRole { case source, expression, result }
@@ -41,6 +42,7 @@ struct NativeEditor: NSViewRepresentable {
   }
   func updateNSView(_ editor: PeelEditorView, context: Context) {
     context.coordinator.dark = colorScheme == .dark
+    context.coordinator.wraps = role != .expression && presentation.wordWrap
     context.coordinator.synchronize()
   }
   static func dismantleNSView(_ editor: PeelEditorView, coordinator: Coordinator) {
@@ -56,6 +58,7 @@ struct NativeEditor: NSViewRepresentable {
   final class Coordinator {
     weak var editor: PeelEditorView?
     var dark = false
+    var wraps = false
     private let model: WorkspaceModel
     private let role: EditorRole
     private var document: String?
@@ -65,9 +68,16 @@ struct NativeEditor: NSViewRepresentable {
     private var output = ""
     private var reveal = -1
 
+    private var wrapObserver: AnyCancellable?
     init(model: WorkspaceModel, role: EditorRole) {
       self.model = model
       self.role = role
+      // SwiftUI doesn't re-run updateNSView for this preference, so apply it directly.
+      wrapObserver = WrapPreference.shared.$enabled.sink { [weak self] enabled in
+        guard let self, self.role != .expression else { return }
+        self.wraps = enabled
+        self.editor?.wrapsLines = enabled
+      }
     }
     func edited(_ text: String) {
       switch role {
@@ -82,6 +92,7 @@ struct NativeEditor: NSViewRepresentable {
     }
     func synchronize() {
       guard let editor else { return }
+      editor.wrapsLines = wraps
       let language =
         role == .source
         ? "json"

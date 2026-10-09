@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 /// NSHostingController doesn't preserve SwiftUI sidebar/spacer placement consistently.
 /// Own just the window toolbar here so both pane toggles stay at the window edges.
@@ -59,6 +60,9 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
           "compact", "Compact JSON", "text.justify",
           #selector(WorkspaceViewController.compactDocument)),
         Action(
+          "wrap", "Wrap Lines", "arrow.turn.down.right",
+          #selector(WorkspaceViewController.toggleWordWrap), help: "Wrap Lines (⌥⌘Z)"),
+        Action(
           "run", "Run Extraction", "play.fill", #selector(WorkspaceViewController.runExtraction),
           help: "Run (⌘Return)"),
       ]
@@ -78,6 +82,22 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     toolbar.displayMode = .iconOnly
     toolbar.allowsUserCustomization = false
     toolbar.autosavesConfiguration = false
+    wrapObserver = WrapPreference.shared.$enabled.sink { [weak self] enabled in
+      self?.applyWrapAppearance(enabled)
+    }
+  }
+
+  private var wrapObserver: AnyCancellable?
+  private weak var wrapItem: NSToolbarItem?
+  /// Toolbar items have no "on" state; tint the glyph with the accent colour while wrapping.
+  private func applyWrapAppearance(_ enabled: Bool) {
+    guard let item = wrapItem else { return }
+    let base = NSImage(
+      systemSymbolName: "arrow.turn.down.right", accessibilityDescription: "Wrap Lines")
+    item.image =
+      enabled
+      ? base?.withSymbolConfiguration(.init(paletteColors: [.controlAccentColor])) : base
+    item.toolTip = enabled ? "Don't Wrap Lines (⌥⌘Z)" : "Wrap Lines (⌥⌘Z)"
   }
 
   private let temporary: Bool
@@ -85,13 +105,65 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     var identifiers = actions.flatMap { ($0.spacingBefore.map { [$0] } ?? []) + [$0.id] }
     guard !temporary else { return identifiers }
     // Keep sidebar items inside the sidebar column and the result toggle over the inspector.
-    if let new = identifiers.firstIndex(of: .init("new")) {
-      identifiers.insert(.sidebarTrackingSeparator, at: new + 1)
+    if let open = identifiers.firstIndex(of: .init("open")) {
+      identifiers.insert(Self.spacer, at: open + 1)
     }
     if let last = identifiers.firstIndex(of: .init("extraction")) {
       identifiers.insert(.inspectorTrackingSeparator, at: last)
     }
     return identifiers
+  }
+  /// SwiftUI's split view isn't an `NSSplitViewController`, so system tracking separators
+  /// can't follow the sidebar. A navigational spacer sized to the sidebar width pushes the
+  /// title to the detail column's leading edge instead.
+  func bindSplitView(in root: NSView) {
+    guard !temporary, split == nil, let found = Self.splitView(in: root) else { return }
+    split = found
+    found.postsFrameChangedNotifications = true
+    NotificationCenter.default.addObserver(
+      self, selector: #selector(sidebarResized), name: NSSplitView.didResizeSubviewsNotification,
+      object: found)
+    sidebarResized()
+  }
+  @objc private func sidebarResized() {
+    updateSpacer()
+  }
+  private func updateSpacer() {
+    guard let split, let first = split.arrangedSubviews.first,
+      let view = spacerView, view.window != nil
+    else { return }
+    let edge = first.isHidden ? 0 : first.frame.width
+    // The spacer's leading edge depends only on the fixed items before it, never on its own
+    // width, so it is stable while the sidebar is dragged. Measure once and reuse it.
+    if leadingInset == nil {
+      let minX = view.convert(view.bounds, to: nil).minX
+      guard minX > 0 else { return }
+      leadingInset = minX
+    }
+    view.currentWidth = max(0, edge - (leadingInset ?? 0) - 8)
+  }
+  private var spacerView: SpacerView?
+  private var leadingInset: CGFloat?
+  private final class SpacerView: NSView {
+    var currentWidth: CGFloat = 1 {
+      didSet { widthConstraint.constant = currentWidth }
+    }
+    private(set) var widthConstraint: NSLayoutConstraint!
+    override init(frame: NSRect) {
+      super.init(frame: frame)
+      translatesAutoresizingMaskIntoConstraints = false
+      widthConstraint = widthAnchor.constraint(equalToConstant: 1)
+      widthConstraint.isActive = true
+      heightAnchor.constraint(equalToConstant: 24).isActive = true
+    }
+    required init?(coder: NSCoder) { fatalError() }
+  }
+  private var split: NSSplitView?
+  private static let spacer = NSToolbarItem.Identifier("Peel.sidebarSpacer")
+  private static func splitView(in view: NSView) -> NSSplitView? {
+    if let split = view as? NSSplitView, split.arrangedSubviews.count >= 2 { return split }
+    for subview in view.subviews { if let found = splitView(in: subview) { return found } }
+    return nil
   }
   func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
     toolbarDefaultItemIdentifiers(toolbar)
@@ -100,6 +172,15 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     _ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
     willBeInsertedIntoToolbar flag: Bool
   ) -> NSToolbarItem? {
+    if identifier == Self.spacer {
+      let item = NSToolbarItem(itemIdentifier: identifier)
+      let view = SpacerView(frame: .zero)
+      spacerView = view
+      item.view = view
+      item.isNavigational = true
+      item.visibilityPriority = .high
+      return item
+    }
     guard let action = actions.first(where: { $0.id == identifier }) else { return nil }
     let item = NSToolbarItem(itemIdentifier: identifier)
     item.label = action.title
@@ -110,6 +191,10 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
     item.action = action.selector
     item.visibilityPriority = .high
     item.isNavigational = action.navigational
+    if identifier.rawValue == "wrap" {
+      wrapItem = item
+      applyWrapAppearance(WrapPreference.shared.enabled)
+    }
     if #available(macOS 26.0, *), identifier.rawValue == "run" {
       item.style = .prominent
     }
