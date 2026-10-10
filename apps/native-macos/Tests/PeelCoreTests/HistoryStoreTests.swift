@@ -115,3 +115,22 @@ extension HistoryStoreTests {
     XCTAssertEqual(restored, record)
   }
 }
+
+final class AppSettingsTests: XCTestCase {
+  func testSettingsWithoutEditorThemeDefaultToVSCode() throws {
+    let old = Data(#"{"theme":"dark","editorFontSize":16,"quickPasteShortcut":""}"#.utf8)
+    let settings = try JSONDecoder().decode(AppSettings.self, from: old)
+    XCTAssertEqual(settings.editorTheme, "vscode")
+    XCTAssertEqual(settings.theme, "dark")
+    XCTAssertEqual(settings.editorFontSize, 16)
+  }
+
+  func testUnknownEditorThemeFallsBackAndKnownOneSurvivesRoundTrip() throws {
+    let unknown = Data(#"{"editorTheme":"missing"}"#.utf8)
+    XCTAssertEqual(try JSONDecoder().decode(AppSettings.self, from: unknown).editorTheme, "vscode")
+    var settings = AppSettings()
+    settings.editorTheme = "nord"
+    let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+    XCTAssertEqual(decoded, settings)
+  }
+}

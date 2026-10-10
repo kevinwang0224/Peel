@@ -93,6 +93,7 @@ struct NativeEditor: NSViewRepresentable {
     func synchronize() {
       guard let editor else { return }
       editor.wrapsLines = wraps
+      editor.syntaxTheme = model.settings.editorTheme
       let language =
         role == .source
         ? "json"

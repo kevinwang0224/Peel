@@ -19,6 +19,8 @@ typedef NS_OPTIONS(NSUInteger, PeelFindOptions) {
 @property(nonatomic) BOOL recessed;
 /// Soft-wraps long lines at the viewport edge instead of scrolling horizontally.
 @property(nonatomic) BOOL wrapsLines;
+/// Syntax palette id (github, solarized, one, nord, dracula, catppuccin); applied on the next configure.
+@property(nonatomic, copy) NSString *syntaxTheme;
 - (void)configureLanguage:(NSString *)language dark:(BOOL)dark fontSize:(NSInteger)fontSize readOnly:(BOOL)readOnly;
 - (void)loadDocument:(NSString *)text;
 - (void)markErrorAtByte:(NSInteger)offset message:(nullable NSString *)message reveal:(BOOL)reveal;

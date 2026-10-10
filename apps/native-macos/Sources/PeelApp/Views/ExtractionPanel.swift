@@ -1,9 +1,9 @@
 import PeelCore
 import SwiftUI
 
-/// Inspector content: write an expression, read the result. Input comes first so the panel
-/// reads top-to-bottom, and each editor sits in a rounded card that follows the window's
-/// Liquid Glass chrome instead of full-bleed panes divided by flat status bars.
+/// Inspector content: read the result on top, write the expression below. Each editor sits in
+/// a rounded card that follows the window's Liquid Glass chrome instead of full-bleed panes
+/// divided by flat status bars.
 @MainActor
 struct ExtractionPanel: View {
   let model: WorkspaceModel
@@ -29,20 +29,20 @@ struct ExtractionPanel: View {
   var body: some View {
     VStack(spacing: 14) {
       VStack(alignment: .leading, spacing: 8) {
-        expressionHeader
-        EditorCard {
-          NativeEditor(model: model, presentation: presentation, role: .expression)
-            .accessibilityLabel("Extraction expression")
-        }
-        .frame(minHeight: 72, idealHeight: 120, maxHeight: 200)
-      }
-      VStack(alignment: .leading, spacing: 8) {
         resultHeader
         EditorCard {
           NativeEditor(model: model, presentation: presentation, role: .result)
             .accessibilityLabel("Extraction result")
         }
         .frame(minHeight: 120, maxHeight: .infinity)
+      }
+      VStack(alignment: .leading, spacing: 8) {
+        expressionHeader
+        EditorCard {
+          NativeEditor(model: model, presentation: presentation, role: .expression)
+            .accessibilityLabel("Extraction expression")
+        }
+        .frame(minHeight: 72, idealHeight: 120, maxHeight: 200)
       }
     }
     .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)

@@ -13,6 +13,9 @@ struct SettingsView: View {
           Text("Light").tag("light")
           Text("Dark").tag("dark")
         }
+        Picker("Syntax theme", selection: $draft.value.editorTheme) {
+          ForEach(EditorTheme.all) { Text($0.name).tag($0.id) }
+        }
         Picker("Font size", selection: $draft.value.editorFontSize) {
           ForEach(10...30, id: \.self) { Text("\($0) pt").tag($0) }
         }
@@ -31,6 +34,6 @@ struct SettingsView: View {
     }
     .formStyle(.grouped)
     .onChange(of: draft.value) { changed() }
-    .frame(width: 460, height: 300)
+    .frame(width: 460, height: 336)
   }
 }

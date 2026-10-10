@@ -114,6 +114,47 @@ static const NSInteger PeelMatchLimit = 10000;
 + (Class)contentViewClass { return [PeelContentView class]; }
 @end
 
+// Syntax palettes. Roles map onto the JSON lexer styles; the JavaScript lexer reuses key, string,
+// number and keyword. Only token colors are themed; backgrounds stay system-driven.
+struct PeelPalette { uint32_t key, string, number, keyword, punctuation, escape, error; };
+struct PeelSyntaxTheme { const char *name; PeelPalette light, dark; };
+static const PeelSyntaxTheme PeelSyntaxThemes[] = {
+    {"vscode",
+        {0x0451a5, 0xa31515, 0x098658, 0x0000ff, 0x000000, 0xee0000, 0xe51400},
+        {0x9cdcfe, 0xce9178, 0xb5cea8, 0x569cd6, 0xd4d4d4, 0xd7ba7d, 0xf44747}},
+    {"github",
+        {0x0550ae, 0x0a3069, 0x953800, 0xcf222e, 0x57606a, 0x116329, 0x82071e},
+        {0x79c0ff, 0xa5d6ff, 0xffa657, 0xff7b72, 0x8b949e, 0x7ee787, 0xffa198}},
+    {"solarized",
+        {0x268bd2, 0x2aa198, 0xd33682, 0x859900, 0x657b83, 0xcb4b16, 0xdc322f},
+        {0x268bd2, 0x2aa198, 0xd33682, 0x859900, 0x839496, 0xcb4b16, 0xdc322f}},
+    {"one",
+        {0xe45649, 0x50a14f, 0x986801, 0xa626a4, 0x696c77, 0x0184bc, 0xca1243},
+        {0xe06c75, 0x98c379, 0xd19a66, 0xc678dd, 0xabb2bf, 0x56b6c2, 0xf44747}},
+    {"nord",
+        {0x5e81ac, 0x587a3c, 0xa0648f, 0x3d7e8a, 0x6b7689, 0xa17a1f, 0xbf616a},
+        {0x88c0d0, 0xa3be8c, 0xb48ead, 0x81a1c1, 0x8f9bb3, 0xebcb8b, 0xbf616a}},
+    {"dracula",
+        {0x036a96, 0x846e15, 0x644ac9, 0xa3144d, 0x6b6f85, 0xa34d14, 0xcb3a2a},
+        {0x8be9fd, 0xf1fa8c, 0xbd93f9, 0xff79c6, 0xa4a9c4, 0xffb86c, 0xff5555}},
+    {"catppuccin",
+        {0x1e66f5, 0x40a02b, 0xfe640b, 0x8839ef, 0x7c7f93, 0x179299, 0xd20f39},
+        {0x89b4fa, 0xa6e3a1, 0xfab387, 0xcba6f7, 0x9399b2, 0x94e2d5, 0xf38ba8}},
+};
+static NSString *PeelResolvedThemeName(NSString *name) {
+    for (const auto &theme : PeelSyntaxThemes) if ([name isEqualToString:@(theme.name)]) return name;
+    return @(PeelSyntaxThemes[0].name);
+}
+static const PeelPalette &PeelPaletteFor(NSString *name, BOOL dark) {
+    for (const auto &theme : PeelSyntaxThemes)
+        if ([name isEqualToString:@(theme.name)]) return dark ? theme.dark : theme.light;
+    return dark ? PeelSyntaxThemes[0].dark : PeelSyntaxThemes[0].light;
+}
+static NSColor *PeelHex(uint32_t rgb) {
+    return [NSColor colorWithSRGBRed:((rgb >> 16) & 0xff) / 255.0 green:((rgb >> 8) & 0xff) / 255.0
+                                blue:(rgb & 0xff) / 255.0 alpha:1];
+}
+
 @interface PeelEditorView () <ScintillaNotificationProtocol> {
     PeelScintillaView *_editor;
     BOOL _updating;
@@ -122,6 +163,8 @@ static const NSInteger PeelMatchLimit = 10000;
     BOOL _dark;
     BOOL _readOnly;
     BOOL _appliedRecessed;
+    NSString *_syntaxTheme;
+    NSString *_appliedTheme;
     BOOL _configured;
     BOOL _cursorReportPending;
     NSInteger _marginDigits;
@@ -290,8 +333,9 @@ static const NSInteger PeelMatchLimit = 10000;
     // The view's effective appearance is the source of truth; SwiftUI's colorScheme can lag behind it.
     dark = [self.effectiveAppearance bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]] == NSAppearanceNameDarkAqua;
     if (_configured && [_language isEqualToString:language] && _fontSize == fontSize && _dark == dark &&
-        _appliedRecessed == _recessed) return;
+        _appliedRecessed == _recessed && [_appliedTheme isEqualToString:PeelResolvedThemeName(_syntaxTheme)]) return;
     _configured = YES; _fontSize = fontSize; _dark = dark; _appliedRecessed = _recessed;
+    _appliedTheme = PeelResolvedThemeName(_syntaxTheme);
     if (![_language isEqualToString:language]) {
         _language = [language copy];
         auto lexer = [language isEqualToString:@"json"] ? lmJSON.Create() :
@@ -350,10 +394,19 @@ static const NSInteger PeelMatchLimit = 10000;
         [_editor message:SCI_SETELEMENTCOLOUR wParam:SC_ELEMENT_CARET_LINE_BACK
                   lParam:PeelPackedRGBA(PeelBlend(foreground, background, dark ? 0.095 : 0.05))];
         BOOL json = [language isEqualToString:@"json"];
-        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_STRING : SCE_C_STRING value:dark ? [NSColor colorWithSRGBRed:0.55 green:0.77 blue:0.65 alpha:1] : [NSColor colorWithSRGBRed:0.20 green:0.43 blue:0.34 alpha:1]];
-        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_PROPERTYNAME : SCE_C_CHARACTER value:dark ? [NSColor colorWithSRGBRed:0.55 green:0.70 blue:0.91 alpha:1] : [NSColor colorWithSRGBRed:0.22 green:0.37 blue:0.57 alpha:1]];
-        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_NUMBER : SCE_C_NUMBER value:dark ? [NSColor colorWithSRGBRed:0.87 green:0.69 blue:0.46 alpha:1] : [NSColor colorWithSRGBRed:0.58 green:0.37 blue:0.18 alpha:1]];
-        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_KEYWORD : SCE_C_WORD value:dark ? [NSColor colorWithSRGBRed:0.76 green:0.61 blue:0.86 alpha:1] : [NSColor colorWithSRGBRed:0.48 green:0.31 blue:0.59 alpha:1]];
+        const PeelPalette &palette = PeelPaletteFor(_appliedTheme, dark);
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_STRING : SCE_C_STRING value:PeelHex(palette.string)];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_PROPERTYNAME : SCE_C_CHARACTER value:PeelHex(palette.key)];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_NUMBER : SCE_C_NUMBER value:PeelHex(palette.number)];
+        [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_KEYWORD : SCE_C_WORD value:PeelHex(palette.keyword)];
+        if (json) {
+            [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_OPERATOR value:PeelHex(palette.punctuation)];
+            [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_ESCAPESEQUENCE value:PeelHex(palette.escape)];
+            [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_URI value:PeelHex(palette.string)];
+            [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_COMPACTIRI value:PeelHex(palette.string)];
+            [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_LDKEYWORD value:PeelHex(palette.keyword)];
+            [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_ERROR value:PeelHex(palette.error)];
+        }
     }];
     [_editor setEditable:!readOnly];
     [_editor message:SCI_ANNOTATIONSETVISIBLE wParam:ANNOTATION_STANDARD];

@@ -22,7 +22,7 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
     applied = settings
     self.apply = apply
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 460, height: 300),
+      contentRect: NSRect(x: 0, y: 0, width: 460, height: 336),
       styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.title = "Settings"
     window.isReleasedWhenClosed = false

@@ -37,11 +37,43 @@ public struct HistorySummary: Identifiable, Sendable {
     self.pinned = pinned
   }
 }
+/// Syntax-highlighting palettes. The ids are persisted in settings and mirrored in `PeelEditor.mm`.
+public struct EditorTheme: Identifiable, Equatable, Sendable {
+  public let id: String
+  public let name: String
+  public static let defaultID = "vscode"
+  public static let all = [
+    EditorTheme(id: "vscode", name: "VS Code"),
+    EditorTheme(id: "github", name: "GitHub"),
+    EditorTheme(id: "solarized", name: "Solarized"),
+    EditorTheme(id: "one", name: "One"),
+    EditorTheme(id: "nord", name: "Nord"),
+    EditorTheme(id: "dracula", name: "Dracula"),
+    EditorTheme(id: "catppuccin", name: "Catppuccin"),
+  ]
+  public static func resolve(_ id: String) -> String {
+    all.contains { $0.id == id } ? id : defaultID
+  }
+}
 public struct AppSettings: Codable, Equatable, Sendable {
   public var theme = "system"
+  public var editorTheme = EditorTheme.defaultID
   public var editorFontSize = 14
   public var quickPasteShortcut = ""
   public init() {}
+  private enum CodingKeys: String, CodingKey {
+    case theme, editorTheme, editorFontSize, quickPasteShortcut
+  }
+  /// Settings written before a field existed must keep loading, so every key is optional.
+  public init(from decoder: Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    theme = try values.decodeIfPresent(String.self, forKey: .theme) ?? theme
+    editorTheme = EditorTheme.resolve(
+      try values.decodeIfPresent(String.self, forKey: .editorTheme) ?? editorTheme)
+    editorFontSize = try values.decodeIfPresent(Int.self, forKey: .editorFontSize) ?? editorFontSize
+    quickPasteShortcut =
+      try values.decodeIfPresent(String.self, forKey: .quickPasteShortcut) ?? quickPasteShortcut
+  }
 }
 public struct ExtractionRequest: Codable, Sendable {
   public let mode: ExtractionMode
