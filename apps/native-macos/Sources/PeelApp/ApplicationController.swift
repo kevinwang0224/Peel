@@ -22,13 +22,16 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     )
     window.title = model.temporary ? "Peel — Scratch" : "Peel"
     window.isReleasedWhenClosed = false
-    window.contentMinSize = NSSize(width: model.temporary ? 720 : 900, height: model.temporary ? 360 : 500)
     super.init(window: window)
     workspace.importFile = { [weak self] in self?.openFile() }
     workspace.openURL = { [weak self] url in self?.open(url) }
     workspace.exportFile = { [weak self] in self?.exportFile() }
     workspace.saveTemporary = { [weak self] in self?.saveScratch() }
-    window.contentViewController = workspace
+    let content = WorkspaceSplitViewController(workspace: workspace)
+    // contentViewController adopts the view's size, so give it the window's size up front.
+    content.view.frame = NSRect(origin: .zero, size: size)
+    window.contentViewController = content
+    window.contentMinSize = NSSize(width: model.temporary ? 720 : 900, height: model.temporary ? 360 : 500)
     workspace.installToolbar(on: window)
     window.toolbarStyle = .unified
     window.delegate = self

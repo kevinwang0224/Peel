@@ -115,9 +115,21 @@ final class WorkspaceWindowToolbar: NSObject, NSToolbarDelegate {
   /// SwiftUI's split view isn't an `NSSplitViewController`, so system tracking separators
   /// can't follow the sidebar. A navigational spacer sized to the sidebar width pushes the
   /// title to the detail column's leading edge instead.
-  func bindSplitView(in root: NSView) {
+  func bindSplitView(in root: NSView, inspector: NSSplitView?) {
     guard !temporary, split == nil, let found = Self.splitView(in: root) else { return }
     split = found
+    // The window's content split view controller now owns only the inspector divider, so pin
+    // each tracking separator to its own split view instead of relying on automatic binding.
+    for item in toolbar.items {
+      guard let separator = item as? NSTrackingSeparatorToolbarItem else { continue }
+      if item.itemIdentifier == .sidebarTrackingSeparator {
+        separator.splitView = found
+        separator.dividerIndex = 0
+      } else if item.itemIdentifier == .inspectorTrackingSeparator, let inspector {
+        separator.splitView = inspector
+        separator.dividerIndex = 0
+      }
+    }
     found.postsFrameChangedNotifications = true
     NotificationCenter.default.addObserver(
       self, selector: #selector(sidebarResized), name: NSSplitView.didResizeSubviewsNotification,

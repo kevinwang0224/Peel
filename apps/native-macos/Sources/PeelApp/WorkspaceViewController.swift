@@ -7,7 +7,7 @@ import SwiftUI
 @MainActor
 final class WorkspaceViewController: NSHostingController<WorkspaceView> {
   let model: WorkspaceModel
-  private let presentation = WorkspacePresentation()
+  let presentation = WorkspacePresentation()
   private let actions = WorkspaceActions()
   private var windowToolbar: WorkspaceWindowToolbar?
   var importFile: (() -> Void)? {
@@ -73,7 +73,8 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
       if presentation.source?.editor != nil { break }
       try? await Task.sleep(for: .milliseconds(10))
     }
-    windowToolbar?.bindSplitView(in: view)
+    windowToolbar?.bindSplitView(
+      in: view, inspector: (parent as? WorkspaceSplitViewController)?.inspectorSplitView)
     presentation.synchronizeEditors()
     presentation.source?.editor?.focusEditor()
     view.window?.toolbar?.validateVisibleItems()

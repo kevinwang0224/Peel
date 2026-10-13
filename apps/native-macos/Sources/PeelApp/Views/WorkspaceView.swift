@@ -67,11 +67,7 @@ private struct WorkspaceDetail: View {
     // text doesn't meet a differently tinted band.
     .background(Color(nsColor: .textBackgroundColor).ignoresSafeArea(.container, edges: .top))
     .animation(.easeOut(duration: 0.15), value: presentation.findVisible)
-    .frame(minWidth: 360)
-    .inspector(isPresented: $presentation.resultVisible) {
-      ExtractionPanel(model: model, presentation: presentation)
-        .inspectorColumnWidth(min: 300, ideal: 400, max: 800)
-    }
+    // The extraction panel lives in `WorkspaceSplitViewController`'s native inspector item.
   }
 }
 
