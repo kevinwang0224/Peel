@@ -7,6 +7,12 @@ typedef NS_OPTIONS(NSUInteger, PeelFindOptions) {
     PeelFindOptionWholeWord = 1 << 1,
     PeelFindOptionRegex = 1 << 2,
 };
+/// Suggestions for the completion popup plus how many bytes before the caret they replace.
+@interface PeelCompletionList : NSObject
+@property(nonatomic, copy, readonly) NSArray<NSString *> *items;
+@property(nonatomic, readonly) NSInteger prefixLength;
+- (instancetype)initWithItems:(NSArray<NSString *> *)items prefixLength:(NSInteger)prefixLength;
+@end
 @interface PeelEditorView : NSView
 @property(copy) NSString *text;
 @property(copy, nullable) void (^onChange)(NSString *);
@@ -15,6 +21,9 @@ typedef NS_OPTIONS(NSUInteger, PeelFindOptions) {
 @property(copy, nullable) NSString * (^transformPaste)(NSString *);
 @property(copy, nullable) void (^onCursor)(NSInteger line, NSInteger column);
 @property(copy, nullable) void (^onDropFile)(NSString *path);
+/// Completion. Called with the text before the caret after `.`, `[`, a quote or an identifier character
+/// is typed; return the candidates (already filtered by what is typed) or nil/empty for none.
+@property(copy, nullable) PeelCompletionList * _Nullable (^completionProvider)(NSString *beforeCaret);
 /// Slightly recessed surface for read-only output.
 @property(nonatomic) BOOL recessed;
 /// Soft-wraps long lines at the viewport edge instead of scrolling horizontally.

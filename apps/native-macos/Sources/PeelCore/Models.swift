@@ -41,8 +41,9 @@ public struct HistorySummary: Identifiable, Sendable {
 public struct EditorTheme: Identifiable, Equatable, Sendable {
   public let id: String
   public let name: String
-  public static let defaultID = "vscode"
+  public static let defaultID = "monaco"
   public static let all = [
+    EditorTheme(id: "monaco", name: "Monaco"),
     EditorTheme(id: "vscode", name: "VS Code"),
     EditorTheme(id: "github", name: "GitHub"),
     EditorTheme(id: "solarized", name: "Solarized"),

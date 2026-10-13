@@ -37,6 +37,9 @@ struct NativeEditor: NSViewRepresentable {
         presentation?.openURL?(URL(fileURLWithPath: path))
       }
     }
+    if role == .expression {
+      editor.completionProvider = { [weak coordinator] text in coordinator?.completions(before: text) }
+    }
     editor.recessed = role == .result
     return editor
   }
@@ -52,6 +55,7 @@ struct NativeEditor: NSViewRepresentable {
     editor.transformPaste = nil
     editor.onCursor = nil
     editor.onDropFile = nil
+    editor.completionProvider = nil
   }
 
   @MainActor
@@ -68,6 +72,7 @@ struct NativeEditor: NSViewRepresentable {
     private var output = ""
     private var reveal = -1
 
+    private var parsedDocument: (id: String?, revision: Int, value: Any?)?
     private var wrapObserver: AnyCancellable?
     init(model: WorkspaceModel, role: EditorRole) {
       self.model = model
@@ -78,6 +83,24 @@ struct NativeEditor: NSViewRepresentable {
         self.wraps = enabled
         self.editor?.wrapsLines = enabled
       }
+    }
+    /// Suggestions for the access, subscript or name being typed at the end of `text`.
+    /// The source is parsed once per revision, and only after the expression looks completable.
+    func completions(before text: String) -> PeelCompletionList? {
+      let javascript = model.extraction.mode == .javascript
+      guard let site = ExpressionCompletion.site(in: text, root: javascript ? "data" : "$")
+      else { return nil }
+      var document: Any?
+      if site.kind != .root {
+        if parsedDocument?.id != model.selectedID || parsedDocument?.revision != model.textRevision {
+          parsedDocument = (
+            model.selectedID, model.textRevision, ExpressionCompletion.parse(model.text)
+          )
+        }
+        document = parsedDocument?.value
+      }
+      let items = ExpressionCompletion.candidates(for: site, in: document, javascript: javascript)
+      return PeelCompletionList(items: items, prefixLength: site.prefix.utf8.count)
     }
     func edited(_ text: String) {
       switch role {

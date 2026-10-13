@@ -116,39 +116,43 @@ static const NSInteger PeelMatchLimit = 10000;
 
 // Syntax palettes. Roles map onto the JSON lexer styles; the JavaScript lexer reuses key, string,
 // number and keyword. Only token colors are themed; backgrounds stay system-driven.
-struct PeelPalette { uint32_t key, string, number, keyword, punctuation, escape, error; };
-struct PeelSyntaxTheme { const char *name; PeelPalette light, dark; };
+struct PeelPalette { uint32_t key, string, number, keyword, punctuation, escape, error; uint32_t bracket[3]; };
+struct PeelSyntaxTheme { const char *name; PeelPalette light, dark; bool boldKeyword = false; };
 static const PeelSyntaxTheme PeelSyntaxThemes[] = {
+    // The Monaco editor of the Electron app: its peel-light / peel-dark themes layered over vs / vs-dark.
+    // Monaco emits no escape or error tokens for JSON, so those reuse the string and a plain red.
+    {"monaco",
+        {0xa31515, 0x0451a5, 0x1c00cf, 0x0451a5, 0x636366, 0x0451a5, 0xc41a16, {0x0431fa, 0x319331, 0x7b3814}},
+        {0x9cdcfe, 0xce9178, 0xd0bf69, 0xce9178, 0x98989d, 0xce9178, 0xfc6d6b, {0xffd700, 0xda70d6, 0x179fff}}, true},
     {"vscode",
-        {0x0451a5, 0xa31515, 0x098658, 0x0000ff, 0x000000, 0xee0000, 0xe51400},
-        {0x9cdcfe, 0xce9178, 0xb5cea8, 0x569cd6, 0xd4d4d4, 0xd7ba7d, 0xf44747}},
+        {0x0451a5, 0xa31515, 0x098658, 0x0000ff, 0x000000, 0xee0000, 0xe51400, {0x0431fa, 0x319331, 0x7b3814}},
+        {0x9cdcfe, 0xce9178, 0xb5cea8, 0x569cd6, 0xd4d4d4, 0xd7ba7d, 0xf44747, {0xffd700, 0xda70d6, 0x179fff}}},
     {"github",
-        {0x0550ae, 0x0a3069, 0x953800, 0xcf222e, 0x57606a, 0x116329, 0x82071e},
-        {0x79c0ff, 0xa5d6ff, 0xffa657, 0xff7b72, 0x8b949e, 0x7ee787, 0xffa198}},
+        {0x0550ae, 0x0a3069, 0x953800, 0xcf222e, 0x57606a, 0x116329, 0x82071e, {0x0969da, 0x8250df, 0xbf8700}},
+        {0x79c0ff, 0xa5d6ff, 0xffa657, 0xff7b72, 0x8b949e, 0x7ee787, 0xffa198, {0xe3b341, 0xd2a8ff, 0x58a6ff}}},
     {"solarized",
-        {0x268bd2, 0x2aa198, 0xd33682, 0x859900, 0x657b83, 0xcb4b16, 0xdc322f},
-        {0x268bd2, 0x2aa198, 0xd33682, 0x859900, 0x839496, 0xcb4b16, 0xdc322f}},
+        {0x268bd2, 0x2aa198, 0xd33682, 0x859900, 0x657b83, 0xcb4b16, 0xdc322f, {0xb58900, 0xd33682, 0x268bd2}},
+        {0x268bd2, 0x2aa198, 0xd33682, 0x859900, 0x839496, 0xcb4b16, 0xdc322f, {0xb58900, 0xd33682, 0x268bd2}}},
     {"one",
-        {0xe45649, 0x50a14f, 0x986801, 0xa626a4, 0x696c77, 0x0184bc, 0xca1243},
-        {0xe06c75, 0x98c379, 0xd19a66, 0xc678dd, 0xabb2bf, 0x56b6c2, 0xf44747}},
+        {0xe45649, 0x50a14f, 0x986801, 0xa626a4, 0x696c77, 0x0184bc, 0xca1243, {0xc18401, 0xa626a4, 0x4078f2}},
+        {0xe06c75, 0x98c379, 0xd19a66, 0xc678dd, 0xabb2bf, 0x56b6c2, 0xf44747, {0xe5c07b, 0xc678dd, 0x61afef}}},
     {"nord",
-        {0x5e81ac, 0x587a3c, 0xa0648f, 0x3d7e8a, 0x6b7689, 0xa17a1f, 0xbf616a},
-        {0x88c0d0, 0xa3be8c, 0xb48ead, 0x81a1c1, 0x8f9bb3, 0xebcb8b, 0xbf616a}},
+        {0x5e81ac, 0x587a3c, 0xa0648f, 0x3d7e8a, 0x6b7689, 0xa17a1f, 0xbf616a, {0xa17a1f, 0xa0648f, 0x5e81ac}},
+        {0x88c0d0, 0xa3be8c, 0xb48ead, 0x81a1c1, 0x8f9bb3, 0xebcb8b, 0xbf616a, {0xebcb8b, 0xb48ead, 0x81a1c1}}},
     {"dracula",
-        {0x036a96, 0x846e15, 0x644ac9, 0xa3144d, 0x6b6f85, 0xa34d14, 0xcb3a2a},
-        {0x8be9fd, 0xf1fa8c, 0xbd93f9, 0xff79c6, 0xa4a9c4, 0xffb86c, 0xff5555}},
+        {0x036a96, 0x846e15, 0x644ac9, 0xa3144d, 0x6b6f85, 0xa34d14, 0xcb3a2a, {0x846e15, 0xa3144d, 0x036a96}},
+        {0x8be9fd, 0xf1fa8c, 0xbd93f9, 0xff79c6, 0xa4a9c4, 0xffb86c, 0xff5555, {0xffb86c, 0xff79c6, 0x8be9fd}}},
     {"catppuccin",
-        {0x1e66f5, 0x40a02b, 0xfe640b, 0x8839ef, 0x7c7f93, 0x179299, 0xd20f39},
-        {0x89b4fa, 0xa6e3a1, 0xfab387, 0xcba6f7, 0x9399b2, 0x94e2d5, 0xf38ba8}},
+        {0x1e66f5, 0x40a02b, 0xfe640b, 0x8839ef, 0x7c7f93, 0x179299, 0xd20f39, {0xdf8e1d, 0x8839ef, 0x1e66f5}},
+        {0x89b4fa, 0xa6e3a1, 0xfab387, 0xcba6f7, 0x9399b2, 0x94e2d5, 0xf38ba8, {0xf9e2af, 0xcba6f7, 0x89b4fa}}},
 };
 static NSString *PeelResolvedThemeName(NSString *name) {
     for (const auto &theme : PeelSyntaxThemes) if ([name isEqualToString:@(theme.name)]) return name;
     return @(PeelSyntaxThemes[0].name);
 }
-static const PeelPalette &PeelPaletteFor(NSString *name, BOOL dark) {
-    for (const auto &theme : PeelSyntaxThemes)
-        if ([name isEqualToString:@(theme.name)]) return dark ? theme.dark : theme.light;
-    return dark ? PeelSyntaxThemes[0].dark : PeelSyntaxThemes[0].light;
+static const PeelSyntaxTheme &PeelThemeNamed(NSString *name) {
+    for (const auto &theme : PeelSyntaxThemes) if ([name isEqualToString:@(theme.name)]) return theme;
+    return PeelSyntaxThemes[0];
 }
 static NSColor *PeelHex(uint32_t rgb) {
     return [NSColor colorWithSRGBRed:((rgb >> 16) & 0xff) / 255.0 green:((rgb >> 8) & 0xff) / 255.0
@@ -165,6 +169,10 @@ static NSColor *PeelHex(uint32_t rgb) {
     BOOL _appliedRecessed;
     NSString *_syntaxTheme;
     NSString *_appliedTheme;
+    BOOL _bracketsDirty;
+    BOOL _bracketRefreshPending;
+    BOOL _refreshingBrackets;
+    sptr_t _bracketStart, _bracketEnd;
     BOOL _configured;
     BOOL _cursorReportPending;
     NSInteger _marginDigits;
@@ -172,6 +180,13 @@ static NSColor *PeelHex(uint32_t rgb) {
     NSString *_errorMessage;
 }
 @end
+@implementation PeelCompletionList
+- (instancetype)initWithItems:(NSArray<NSString *> *)items prefixLength:(NSInteger)prefixLength {
+    if ((self = [super init])) { _items = [items copy]; _prefixLength = prefixLength; }
+    return self;
+}
+@end
+
 @implementation PeelEditorView
 - (instancetype)initWithFrame:(NSRect)frame {
     if ((self = [super initWithFrame:frame])) {
@@ -249,6 +264,7 @@ static NSColor *PeelHex(uint32_t rgb) {
 - (void)setText:(NSString *)text {
     if ([self.text isEqualToString:text]) return;
     _updating = YES;
+    [_editor message:SCI_AUTOCCANCEL];
     BOOL readOnly = ![_editor isEditable];
     [_editor setEditable:YES];
     [_editor message:SCI_BEGINUNDOACTION];
@@ -261,6 +277,7 @@ static NSColor *PeelHex(uint32_t rgb) {
     _updating = NO;
     _errorOffset = -2;  // the replacement removed indicators and annotations
     [self updateLineNumberMargin:NO];
+    [self refreshBracketColors];
 }
 - (void)replaceSelectionWithText:(NSString *)text {
     if (![_editor isEditable]) return;
@@ -281,11 +298,13 @@ static NSColor *PeelHex(uint32_t rgb) {
     [_editor message:SCI_SETWRAPINDENTMODE wParam:SC_WRAPINDENT_SAME];
     [_editor message:SCI_SETXOFFSET wParam:0];
     [_editor message:SCI_SETFIRSTVISIBLELINE wParam:[_editor message:SCI_VISIBLEFROMDOCLINE wParam:top]];
+    [self scheduleBracketRefresh];
 }
 - (void)loadDocument:(NSString *)text {
     self.text = text;
     [_editor message:SCI_EMPTYUNDOBUFFER];
     [_editor message:SCI_GOTOPOS wParam:0];
+    [self refreshBracketColors];
 }
 - (void)updateLineNumberMargin:(BOOL)force {
     sptr_t lines = [_editor message:SCI_GETLINECOUNT];
@@ -309,8 +328,177 @@ static NSColor *PeelHex(uint32_t rgb) {
         self.onCursor(line + 1, column + 1);
     });
 }
+static BOOL PeelIsIdentifierByte(int ch) {
+    return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || ch == '_' || ch == '$';
+}
+// Scintilla's completion list is a borderless NSWindow holding a plain NSTableView. It exposes no
+// styling hooks, so find that window right after it opens and give it the app's material, corner
+// radius and rounded inset selection.
+- (void)styleCompletionList {
+    NSWindow *list = nil;
+    for (NSWindow *candidate in NSApp.windows) {
+        if (candidate.isVisible && candidate.styleMask == NSWindowStyleMaskBorderless && candidate.level == NSModalPanelWindowLevel + 1 &&
+            [candidate.contentView.subviews.firstObject isKindOfClass:[NSScrollView class]]) { list = candidate; break; }
+    }
+    NSScrollView *scroller = (NSScrollView *)list.contentView.subviews.firstObject;
+    NSTableView *table = (NSTableView *)scroller.documentView;
+    if (!list || ![table isKindOfClass:[NSTableView class]]) return;
+    list.appearance = self.effectiveAppearance;
+    list.opaque = NO;
+    list.backgroundColor = [NSColor clearColor];
+    scroller.drawsBackground = NO;
+    scroller.borderType = NSNoBorder;
+    table.backgroundColor = [NSColor clearColor];
+    table.style = NSTableViewStyleInset;
+    table.selectionHighlightStyle = NSTableViewSelectionHighlightStyleRegular;
+    table.intercellSpacing = NSMakeSize(0, 2);
+    NSView *content = list.contentView;
+    if (![content.subviews.firstObject isKindOfClass:[NSVisualEffectView class]]) {
+        NSVisualEffectView *material = [[NSVisualEffectView alloc] initWithFrame:content.bounds];
+        material.material = NSVisualEffectMaterialMenu;
+        material.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+        material.state = NSVisualEffectStateActive;
+        material.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        [content addSubview:material positioned:NSWindowBelow relativeTo:nil];
+    }
+    content.wantsLayer = YES;
+    content.layer.cornerRadius = 10;
+    content.layer.cornerCurve = kCACornerCurveContinuous;
+    content.layer.masksToBounds = YES;
+    content.layer.borderWidth = 0.5;
+    content.layer.borderColor = [[NSColor separatorColor] CGColor];
+    // Inset rows add side padding that Scintilla's width measurement does not know about.
+    NSRect frame = list.frame;
+    frame.size.width += 20;
+    [list setFrame:frame display:NO];
+    dispatch_async(dispatch_get_main_queue(), ^{ [list invalidateShadow]; });
+}
+- (void)showCompletionAfterTyping:(int)ch {
+    const BOOL identifier = PeelIsIdentifierByte(ch);
+    if (!identifier && ch != '.' && ch != '[' && ch != '"' && ch != '\'') return;
+    // Once the list is open Scintilla narrows it itself as more of the name is typed.
+    const BOOL active = [_editor message:SCI_AUTOCACTIVE] != 0;
+    if (identifier && active) return;
+    const sptr_t position = [_editor message:SCI_GETCURRENTPOS];
+    if (position <= 0 || position != [_editor message:SCI_GETANCHOR]) return;
+    std::string buffer((size_t)position + 1, '\0');
+    Sci_TextRangeFull range = {{0, position}, buffer.data()};
+    [_editor message:SCI_GETTEXTRANGEFULL wParam:0 lParam:(sptr_t)&range];
+    NSString *before = [[NSString alloc] initWithBytes:buffer.data() length:(NSUInteger)position encoding:NSUTF8StringEncoding];
+    PeelCompletionList *list = before ? self.completionProvider(before) : nil;
+    if (active) [_editor message:SCI_AUTOCCANCEL];
+    if (list.items.count == 0) return;
+    [_editor message:SCI_AUTOCSETSEPARATOR wParam:'\n'];
+    [_editor message:SCI_AUTOCSETIGNORECASE wParam:1];
+    [_editor message:SCI_AUTOCSETORDER wParam:SC_ORDER_PRESORTED];
+    [_editor message:SCI_AUTOCSETMAXHEIGHT wParam:8];
+    [_editor message:SCI_AUTOCSETAUTOHIDE wParam:1];
+    [_editor message:SCI_AUTOCSHOW wParam:list.prefixLength lParam:(sptr_t)[list.items componentsJoinedByString:@"\n"].UTF8String];
+    if ([_editor message:SCI_AUTOCACTIVE]) [self styleCompletionList];
+}
+// Bracket pair colorization. Depth comes from the JSON lexer's fold levels (the level at the start
+// of a line) plus a string-aware scan of the visible lines, so only the viewport is ever touched.
+// Brackets are tinted with text-foreground indicators: 9-11 cycle with depth, 12 marks a closer
+// without an opener.
+static const int PeelBracketIndicatorBase = 9;
+static const int PeelBracketUnmatchedIndicator = 12;
+static const sptr_t PeelBracketSpanLimit = 400000;
+static const sptr_t PeelBracketLongLinePadding = 50000;
+- (void)visibleStart:(sptr_t *)start end:(sptr_t *)end padLines:(sptr_t)pad {
+    const sptr_t lines = [_editor message:SCI_GETLINECOUNT];
+    const sptr_t top = [_editor message:SCI_GETFIRSTVISIBLELINE];
+    sptr_t first = [_editor message:SCI_DOCLINEFROMVISIBLE wParam:top];
+    sptr_t last = [_editor message:SCI_DOCLINEFROMVISIBLE wParam:top + [_editor message:SCI_LINESONSCREEN]];
+    first = std::max<sptr_t>(0, first - pad);
+    last = std::min(lines - 1, last + pad);
+    *start = [_editor message:SCI_POSITIONFROMLINE wParam:first];
+    *end = [_editor message:SCI_GETLINEENDPOSITION wParam:last];
+    if (*end - *start > PeelBracketSpanLimit) {
+        // Minified JSON: one line can be megabytes long, so follow the viewport instead of the lines.
+        const NSSize size = _editor.content.bounds.size;
+        const sptr_t from = [_editor message:SCI_POSITIONFROMPOINT wParam:0 lParam:0];
+        const sptr_t to = [_editor message:SCI_POSITIONFROMPOINT wParam:(uptr_t)size.width lParam:(sptr_t)size.height];
+        *start = std::max(*start, from - PeelBracketLongLinePadding);
+        *end = std::min(*end, to + PeelBracketLongLinePadding);
+    }
+}
+- (void)clearBracketColors {
+    const sptr_t length = [_editor message:SCI_GETLENGTH];
+    for (int indicator = PeelBracketIndicatorBase; indicator <= PeelBracketUnmatchedIndicator; indicator++) {
+        [_editor message:SCI_SETINDICATORCURRENT wParam:indicator];
+        [_editor message:SCI_INDICATORCLEARRANGE wParam:0 lParam:length];
+    }
+    _bracketStart = _bracketEnd = 0;
+    _bracketsDirty = YES;
+}
+- (void)refreshBracketColors {
+    if (_refreshingBrackets || ![_language isEqualToString:@"json"]) return;
+    sptr_t needStart, needEnd;
+    [self visibleStart:&needStart end:&needEnd padLines:0];
+    if (!_bracketsDirty && needStart >= _bracketStart && needEnd <= _bracketEnd) return;
+    _refreshingBrackets = YES;
+    sptr_t start, end;
+    [self visibleStart:&start end:&end padLines:std::max<sptr_t>(40, [_editor message:SCI_LINESONSCREEN])];
+    // Fold levels only exist for text the lexer has already styled.
+    const sptr_t styled = [_editor message:SCI_GETENDSTYLED];
+    if (styled < end) [_editor message:SCI_COLOURISE wParam:styled lParam:end];
+    const sptr_t line = [_editor message:SCI_LINEFROMPOSITION wParam:start];
+    const sptr_t lineStart = [_editor message:SCI_POSITIONFROMLINE wParam:line];
+    sptr_t depth = ([_editor message:SCI_GETFOLDLEVEL wParam:line] & SC_FOLDLEVELNUMBERMASK) - SC_FOLDLEVELBASE;
+    depth = std::max<sptr_t>(0, depth);
+    const char *text = (const char *)[_editor message:SCI_GETRANGEPOINTER wParam:lineStart lParam:end - lineStart];
+    if (text) {
+        std::vector<sptr_t> hits[PeelBracketUnmatchedIndicator - PeelBracketIndicatorBase + 1];
+        bool inString = false, escaped = false;
+        for (sptr_t i = 0; i < end - lineStart; i++) {
+            const char c = text[i];
+            if (c == '\n') { inString = escaped = false; continue; }
+            if (inString) {
+                if (escaped) escaped = false;
+                else if (c == '\\') escaped = true;
+                else if (c == '"') inString = false;
+                continue;
+            }
+            if (c == '"') { inString = true; continue; }
+            int slot;
+            if (c == '{' || c == '[') { slot = (int)(depth % 3); depth++; }
+            else if (c == '}' || c == ']') {
+                if (depth > 0) { depth--; slot = (int)(depth % 3); }
+                else slot = PeelBracketUnmatchedIndicator - PeelBracketIndicatorBase;
+            } else continue;
+            if (lineStart + i >= start) hits[slot].push_back(lineStart + i);
+        }
+        [self clearBracketColors];
+        for (int slot = 0; slot <= PeelBracketUnmatchedIndicator - PeelBracketIndicatorBase; slot++) {
+            if (hits[slot].empty()) continue;
+            [_editor message:SCI_SETINDICATORCURRENT wParam:PeelBracketIndicatorBase + slot];
+            for (sptr_t position : hits[slot]) [_editor message:SCI_INDICATORFILLRANGE wParam:position lParam:1];
+        }
+        _bracketStart = start; _bracketEnd = end; _bracketsDirty = NO;
+    }
+    _refreshingBrackets = NO;
+}
+- (void)scheduleBracketRefresh {
+    if (_bracketRefreshPending) return;
+    _bracketRefreshPending = YES;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self->_bracketRefreshPending = NO;
+        [self refreshBracketColors];
+    });
+}
 - (void)notification:(SCNotification *)notification {
     if (notification->nmhdr.code == SCN_FOCUSIN && self.onFocus) self.onFocus();
+    if (notification->nmhdr.code == SCN_CHARADDED && !_updating && !_readOnly && self.completionProvider) {
+        [self showCompletionAfterTyping:notification->ch];
+    }
+    if (notification->nmhdr.code == SCN_MODIFIED &&
+        (notification->modificationType & (SC_MOD_INSERTTEXT | SC_MOD_DELETETEXT))) {
+        _bracketsDirty = YES;
+    }
+    if (notification->nmhdr.code == SCN_UPDATEUI &&
+        (notification->updated & (SC_UPDATE_CONTENT | SC_UPDATE_V_SCROLL | SC_UPDATE_H_SCROLL))) {
+        [self scheduleBracketRefresh];
+    }
     if (notification->nmhdr.code == SCN_URIDROPPED && self.onDropFile && notification->text) {
         self.onDropFile([NSString stringWithUTF8String:notification->text]);
     }
@@ -394,11 +582,20 @@ static NSColor *PeelHex(uint32_t rgb) {
         [_editor message:SCI_SETELEMENTCOLOUR wParam:SC_ELEMENT_CARET_LINE_BACK
                   lParam:PeelPackedRGBA(PeelBlend(foreground, background, dark ? 0.095 : 0.05))];
         BOOL json = [language isEqualToString:@"json"];
-        const PeelPalette &palette = PeelPaletteFor(_appliedTheme, dark);
+        const PeelSyntaxTheme &syntaxTheme = PeelThemeNamed(_appliedTheme);
+        const PeelPalette &palette = dark ? syntaxTheme.dark : syntaxTheme.light;
         [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_STRING : SCE_C_STRING value:PeelHex(palette.string)];
         [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_PROPERTYNAME : SCE_C_CHARACTER value:PeelHex(palette.key)];
         [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_NUMBER : SCE_C_NUMBER value:PeelHex(palette.number)];
         [_editor setColorProperty:SCI_STYLESETFORE parameter:json ? SCE_JSON_KEYWORD : SCE_C_WORD value:PeelHex(palette.keyword)];
+        if (syntaxTheme.boldKeyword)
+            [_editor message:SCI_STYLESETBOLD wParam:json ? SCE_JSON_KEYWORD : SCE_C_WORD lParam:1];
+        for (int slot = 0; slot < 3; slot++) {
+            [_editor message:SCI_INDICSETSTYLE wParam:PeelBracketIndicatorBase + slot lParam:INDIC_TEXTFORE];
+            [_editor setColorProperty:SCI_INDICSETFORE parameter:PeelBracketIndicatorBase + slot value:PeelHex(palette.bracket[slot])];
+        }
+        [_editor message:SCI_INDICSETSTYLE wParam:PeelBracketUnmatchedIndicator lParam:INDIC_TEXTFORE];
+        [_editor setColorProperty:SCI_INDICSETFORE parameter:PeelBracketUnmatchedIndicator value:PeelHex(palette.error)];
         if (json) {
             [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_OPERATOR value:PeelHex(palette.punctuation)];
             [_editor setColorProperty:SCI_STYLESETFORE parameter:SCE_JSON_ESCAPESEQUENCE value:PeelHex(palette.escape)];
@@ -409,6 +606,8 @@ static NSColor *PeelHex(uint32_t rgb) {
         }
     }];
     [_editor setEditable:!readOnly];
+    if ([language isEqualToString:@"json"]) [self refreshBracketColors];
+    else [self clearBracketColors];
     [_editor message:SCI_ANNOTATIONSETVISIBLE wParam:ANNOTATION_STANDARD];
     _errorOffset = -2;  // style reset: repaint the diagnostic on the next mark
     [self updateLineNumberMargin:YES];
