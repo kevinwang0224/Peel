@@ -13,7 +13,7 @@ bin_dir="$(swift build --package-path "$native_root" -c "$configuration" --show-
 app_path="$native_root/build/Peel Native.app"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$bin_dir/PeelNative" "$bin_dir/PeelScript" "$app_path/Contents/MacOS/"
-cp "$native_root/Resources/AppIcon.icns" "$app_path/Contents/Resources/AppIcon.icns"
+cp "$native_root/Resources/AppIcon.icns" "$native_root/Resources/AppIconLight.icns" "$app_path/Contents/Resources/"
 ditto "$bin_dir/PeelNative_PeelScript.bundle" "$app_path/Contents/Resources/PeelNative_PeelScript.bundle"
 for cursor in busy flipped; do
   sips -s format tiff "$native_root/Dependencies/scintilla/cocoa/res/mac_cursor_$cursor.png" --out "$app_path/Contents/Resources/mac_cursor_$cursor.tiff" >/dev/null

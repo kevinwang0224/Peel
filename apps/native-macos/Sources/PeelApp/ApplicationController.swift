@@ -12,7 +12,7 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
   init(model: WorkspaceModel) {
     self.model = model
     workspace = WorkspaceViewController(model: model)
-    let size = model.temporary ? NSSize(width: 940, height: 620) : NSSize(width: 1280, height: 820)
+    let size = model.temporary ? NSSize(width: 1100, height: 720) : NSSize(width: 1280, height: 820)
     let window = NSWindow(
       contentRect: NSRect(origin: .zero, size: size),
       // fullSizeContentView lets the SwiftUI split view own the safe area under the toolbar; without it
@@ -31,7 +31,7 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     // contentViewController adopts the view's size, so give it the window's size up front.
     content.view.frame = NSRect(origin: .zero, size: size)
     window.contentViewController = content
-    window.contentMinSize = NSSize(width: model.temporary ? 720 : 900, height: model.temporary ? 360 : 500)
+    window.contentMinSize = NSSize(width: model.temporary ? 800 : 900, height: model.temporary ? 420 : 500)
     workspace.installToolbar(on: window)
     window.toolbarStyle = .unified
     window.delegate = self
@@ -43,6 +43,11 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
   }
   required init?(coder: NSCoder) { fatalError("Not supported") }
   func present() {
+    if model.temporary {
+      // Center before the window is ordered in; centering afterwards makes it visibly jump.
+      window?.layoutIfNeeded()
+      window?.center()
+    }
     showWindow(nil)
     window?.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
@@ -51,7 +56,7 @@ final class WorkspaceWindow: NSWindowController, NSWindowDelegate {
     if mayClose { return true }
     if !model.ready { return false }
     if closing { return false }
-    if model.temporary && model.dirty {
+    if model.temporary && model.dirty && !model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       let alert = NSAlert()
       alert.messageText = "Save scratch to history?"
       alert.informativeText = "Your changes have not been saved."
@@ -149,12 +154,22 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   private var legacyFiles: [URL] = []
   private var terminationInProgress = false
   private var selectionPreferenceKey = ""
+  private var appearanceObservation: NSKeyValueObservation?
+  private var currentIconIsDark: Bool?
+  private lazy var darkAppIcon: NSImage? =
+    Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap(
+      NSImage.init(contentsOf:))
+  private lazy var lightAppIcon: NSImage? =
+    Bundle.main.url(forResource: "AppIconLight", withExtension: "icns").flatMap(
+      NSImage.init(contentsOf:))
   private let launchedAt = ProcessInfo.processInfo.systemUptime
 
   func applicationDidFinishLaunching(_ notification: Notification) {
-    if let icon = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") {
-      NSApp.applicationIconImage = NSImage(contentsOf: icon)
+    appearanceObservation = NSApp.observe(\.effectiveAppearance, options: [.initial, .new]) {
+      [weak self] _, _ in
+      Task { @MainActor [weak self] in self?.updateApplicationIcon() }
     }
+    updateApplicationIcon()
     if ProcessInfo.processInfo.environment["PEEL_METRICS"] == "1" {
       print("PEEL_DID_FINISH_MS=\((ProcessInfo.processInfo.systemUptime - launchedAt) * 1000)")
       fflush(stdout)
@@ -363,12 +378,33 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
       case "light": NSAppearance(named: .aqua)
       default: nil
       }
+    updateApplicationIcon()
     mainWindow?.model.settings = settings
     for controller in scratchWindows.values { controller.model.settings = settings }
     if settingsRequested {
       settingsRequested = false
       self.settings(nil)
     }
+  }
+  private func updateApplicationIcon() {
+    let isDark =
+      switch currentSettings.theme {
+      case "dark": true
+      case "light": false
+      default: NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+      }
+    guard isDark != currentIconIsDark else { return }
+    if let icon = isDark ? darkAppIcon : (lightAppIcon ?? darkAppIcon) {
+      NSApp.applicationIconImage = icon
+      currentIconIsDark = isDark
+    }
+  }
+  @objc func showAbout(_ sender: Any?) {
+    updateApplicationIcon()
+    var options: [NSApplication.AboutPanelOptionKey: Any] = [:]
+    if let icon = NSApp.applicationIconImage { options[.applicationIcon] = icon }
+    NSApp.orderFrontStandardAboutPanel(options: options)
+    NSApp.activate(ignoringOtherApps: true)
   }
   @objc func settings(_ sender: Any?) {
     guard settingsReady else {
@@ -455,8 +491,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
   private func setupMenus() {
     let bar = NSMenu()
     let appMenu = NSMenu(title: "Peel")
-    appMenu.addItem(
-      item("About Peel", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), target: NSApp))
+    appMenu.addItem(item("About Peel", #selector(showAbout(_:))))
     appMenu.addItem(item("Settings…", #selector(settings(_:)), key: ","))
     appMenu.addItem(.separator())
     appMenu.addItem(item("Hide Peel", #selector(NSApplication.hide(_:)), key: "h", target: NSApp))

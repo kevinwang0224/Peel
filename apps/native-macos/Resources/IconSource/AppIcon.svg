@@ -1,0 +1,39 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="iconClip">
+      <rect x="84" y="84" width="856" height="856" rx="180"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#iconClip)">
+    <rect x="84" y="84" width="856" height="856" rx="180" fill="#000000"/>
+  </g>
+
+  <g
+    font-family="Monaco, Menlo, monospace"
+    fill="#FFFFFF"
+    stroke="#FFFFFF"
+    stroke-width="10"
+    stroke-linejoin="round"
+    paint-order="stroke fill"
+  >
+    <text
+      x="280"
+      y="522"
+      font-size="270"
+      text-anchor="middle"
+      dominant-baseline="middle">{</text>
+    <text
+      x="744"
+      y="522"
+      font-size="270"
+      text-anchor="middle"
+      dominant-baseline="middle">}</text>
+  </g>
+
+  <g fill="#FFFFFF">
+    <circle cx="432" cy="512" r="20"/>
+    <circle cx="512" cy="512" r="20"/>
+    <circle cx="592" cy="512" r="20"/>
+  </g>
+</svg>
