@@ -1,99 +1,43 @@
 # Peel
 
-The primary desktop implementation now includes a native macOS app using SwiftUI, AppKit editor/window bridges, Scintilla Cocoa, SQLite and a disposable JavaScriptCore helper. It targets macOS 14+ on Apple Silicon and runs without Electron, WebView or Node. See [native build, migration and verification instructions](apps/native-macos/README.md).
+[中文说明](README_zh.md)
+
+**Peel** is a lightweight JSON formatter and editor for macOS. It is a native app built with SwiftUI, AppKit editor/window bridges, Scintilla Cocoa, SQLite and a disposable JavaScriptCore helper. It targets macOS 14+ on Apple Silicon and runs without WebView or Node. See [native build, migration and verification instructions](apps/native-macos/README.md).
 
 ```bash
 bash apps/native-macos/scripts/build.sh
 open "apps/native-macos/build/Peel Native.app"
 ```
 
-The previous Electron workspace remains as a migration reference. The instructions below describe that version; use `npm run dev:electron` to launch it. `npm run build` now builds the native app.
-
-[中文说明](README_zh.md)
-
-**Peel** is a lightweight JSON formatter and editor. The goal is a fast, minimal app with a clean interface: edit raw JSON in Monaco, run extractions with JavaScript or JSONPath, and keep a searchable history of documents—all with local storage.
-
 ## Features
 
-- **Monaco-based editing** with syntax highlighting, validation, and familiar shortcuts  
-- **Automatic paste formatting** for valid JSON; non-JSON text is kept as-is  
-- **Extraction** via embedded JavaScript or **JSONPath** (work runs off the main thread)  
-- **History sidebar**: create, search, pin, rename, and delete records; edits persist automatically  
-- **Import / export**: open JSON files and export; clipboard read/write through the app shell  
-- **Theme**: system preference, light, or dark  
-- **Desktop**: native file dialogs and application menu integration (Electron)
+- **Scintilla-based editing** with syntax highlighting, validation, and familiar shortcuts
+- **Automatic paste formatting** for valid JSON; non-JSON text is kept as-is
+- **Extraction** via JavaScript or **JSONPath**
+- **History sidebar**: create, search, pin, rename, and delete records; edits persist automatically
+- **Import / export**: open JSON files and export
+- **Theme**: system, light, or dark, with a matching `{ ... }` app icon
 
 ## Repository layout
 
 | Path | Description |
 |------|-------------|
-| [`apps/desktop/`](apps/desktop/) | Current **Electron** desktop app (React, TypeScript, Vite, Tailwind, shadcn/ui, Monaco) |
+| [`apps/native-macos/`](apps/native-macos/) | Native macOS app (Swift 6, SwiftUI, AppKit, Scintilla) |
 | [`packages/shared/`](packages/shared/) | **Platform-agnostic** JSON utilities, extraction logic, types, and history helpers (`@peel/shared`) |
 | `apps/extension/` | Reserved for a future **browser extension** (reuses `@peel/shared` only) |
 
-The renderer talks to the system only through a small **`window.peel`** API exposed in preload; it does not call Node or Electron directly from the UI.
+## Common scripts
 
-## Prerequisites
-
-- **Node.js** 20+ recommended (align with current Electron / Vite tooling)  
-- **npm** (workspaces are used at the repo root)
-
-## Getting started
-
-```bash
-git clone <your-fork-or-remote-url> peel
-cd peel
-npm install
-```
-
-### Run the desktop app (development)
-
-```bash
-npm run dev:electron
-```
-
-This runs the `@peel/desktop` workspace with electron-vite.
-
-### Other common scripts
+Run from the repo root (`npm install` first):
 
 | Command | Purpose |
 |--------|---------|
+| `npm run build` / `npm run native:build` | Build the native app |
+| `npm run dev:native` | Build and open the native app |
+| `npm run native:test` | Run native tests |
 | `npm run build:shared` | Build the `@peel/shared` package |
-| `npm run lint` | Lint all workspaces that define a `lint` script |
-| `npm run test` | Run tests in all workspaces |
-| `npm run typecheck` | Typecheck all workspaces |
-| `npm run build` | Build all workspaces (where implemented) |
+| `npm run lint` / `test` / `typecheck` | Run in all workspaces that define them |
 
-### Desktop-only
+## App icons
 
-From the repo root, or with `cd apps/desktop` and workspace-aware npm:
-
-```bash
-npm run test -w @peel/desktop
-npm run build -w @peel/desktop
-```
-
-`@peel/desktop` `build` also builds `@peel/shared`, runs typecheck and tests, then packages the Electron app.
-
-**macOS distributables** (see `apps/desktop/package.json`):
-
-```bash
-npm run build:mac -w @peel/desktop
-```
-
-Produces DMG and ZIP via electron-builder (configure in `apps/desktop/electron-builder.yml`).
-
-More desktop-oriented notes: [`apps/desktop/README.md`](apps/desktop/README.md).
-
-## Technologies (desktop)
-
-- [Electron](https://www.electronjs.org/) — desktop shell  
-- [React](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)  
-- [Vite](https://vitejs.dev/) + [electron-vite](https://electron-vite.org/)  
-- [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) (Radix primitives)  
-- [Monaco Editor](https://github.com/microsoft/monaco-editor)  
-- Shared parsing/helpers: [jsonc-parser](https://github.com/microsoft/node-jsonc-parser), [jsonpath-plus](https://github.com/JSONPath-Plus/JSONPath-Plus)
-
----
-
-*Product name in installers: **Peel** (`appId`: `com.peel.desktop`).*
+`apps/native-macos/Resources/IconSource/` holds the SVG sources (`AppIcon.svg` for dark, `AppIconLight.svg` for light). The app switches `AppIcon.icns` / `AppIconLight.icns` with the current appearance.

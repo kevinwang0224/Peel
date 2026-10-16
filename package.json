@@ -14,8 +14,6 @@
     "build": "npm run native:build",
     "native:build": "bash apps/native-macos/scripts/build.sh",
     "native:test": "bash apps/native-macos/scripts/test.sh",
-    "dev:native": "npm run native:build && open \"apps/native-macos/build/Peel Native.app\"",
-    "dev:electron": "npm run dev -w @peel/desktop",
-    "build:electron": "npm run build -w @peel/desktop"
+    "dev:native": "npm run native:build && open \"apps/native-macos/build/Peel Native.app\""
   }
 }
