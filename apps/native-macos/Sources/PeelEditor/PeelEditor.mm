@@ -119,7 +119,7 @@ static const NSInteger PeelMatchLimit = 10000;
 struct PeelPalette { uint32_t key, string, number, keyword, punctuation, escape, error; uint32_t bracket[3]; };
 struct PeelSyntaxTheme { const char *name; PeelPalette light, dark; bool boldKeyword = false; };
 static const PeelSyntaxTheme PeelSyntaxThemes[] = {
-    // The Monaco editor of the Electron app: its peel-light / peel-dark themes layered over vs / vs-dark.
+    // Monaco-style peel-light / peel-dark palettes layered over vs / vs-dark.
     // Monaco emits no escape or error tokens for JSON, so those reuse the string and a plain red.
     {"monaco",
         {0xa31515, 0x0451a5, 0x1c00cf, 0x0451a5, 0x636366, 0x0451a5, 0xc41a16, {0x0431fa, 0x319331, 0x7b3814}},
@@ -221,6 +221,9 @@ static NSColor *PeelHex(uint32_t rgb) {
         [_editor message:SCI_SETTABWIDTH wParam:2];
         [_editor message:SCI_SETUSETABS wParam:0];
         [_editor message:SCI_SETWRAPMODE wParam:SC_WRAP_NONE];
+        // Default scrollWidth is 2000px, which draws a long unused bar on short JSON.
+        [_editor message:SCI_SETSCROLLWIDTH wParam:1];
+        [_editor message:SCI_SETSCROLLWIDTHTRACKING wParam:1];
         [_editor message:SCI_SETLAYOUTCACHE wParam:SC_CACHE_PAGE];
         [_editor message:SCI_INDICSETSTYLE wParam:8 lParam:INDIC_SQUIGGLE];
         _errorOffset = -1;
@@ -296,12 +299,17 @@ static NSColor *PeelHex(uint32_t rgb) {
     const sptr_t top = [_editor message:SCI_DOCLINEFROMVISIBLE wParam:[_editor message:SCI_GETFIRSTVISIBLELINE]];
     [_editor message:SCI_SETWRAPMODE wParam:wraps ? SC_WRAP_WORD : SC_WRAP_NONE];
     [_editor message:SCI_SETWRAPINDENTMODE wParam:SC_WRAPINDENT_SAME];
+    [_editor message:SCI_SETHSCROLLBAR wParam:wraps ? 0 : 1];
+    [_editor message:SCI_SETSCROLLWIDTH wParam:1];
+    [_editor message:SCI_SETSCROLLWIDTHTRACKING wParam:wraps ? 0 : 1];
     [_editor message:SCI_SETXOFFSET wParam:0];
     [_editor message:SCI_SETFIRSTVISIBLELINE wParam:[_editor message:SCI_VISIBLEFROMDOCLINE wParam:top]];
     [self scheduleBracketRefresh];
 }
 - (void)loadDocument:(NSString *)text {
     self.text = text;
+    // Tracked scroll width only grows; start over so a short document doesn't inherit the previous one's width.
+    [_editor message:SCI_SETSCROLLWIDTH wParam:1];
     [_editor message:SCI_EMPTYUNDOBUFFER];
     [_editor message:SCI_GOTOPOS wParam:0];
     [self refreshBracketColors];

@@ -35,6 +35,7 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
     super.init(rootView: WorkspaceView(model: model, presentation: presentation, actions: actions))
     sizingOptions = []
     sceneBridgingOptions = [.title]
+    if model.temporary { presentation.resultVisible = false }
     actions.renameCurrent = { [weak self] in self?.showRename() }
     actions.deleteRecords = { [weak self] ids in self?.confirmDelete(ids) }
     presentation.openURL = { [weak self] url in self?.actions.openURL?(url) }
@@ -73,8 +74,7 @@ final class WorkspaceViewController: NSHostingController<WorkspaceView> {
       if presentation.source?.editor != nil { break }
       try? await Task.sleep(for: .milliseconds(10))
     }
-    windowToolbar?.bindSplitView(
-      in: view, inspector: (parent as? WorkspaceSplitViewController)?.inspectorSplitView)
+    windowToolbar?.bindSplitView(in: view)
     presentation.synchronizeEditors()
     presentation.source?.editor?.focusEditor()
     view.window?.toolbar?.validateVisibleItems()

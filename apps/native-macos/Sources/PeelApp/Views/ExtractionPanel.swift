@@ -46,6 +46,8 @@ struct ExtractionPanel: View {
       }
     }
     .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 12)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color(nsColor: .textBackgroundColor).ignoresSafeArea(.container, edges: .top))
   }
 
   private var expressionHeader: some View {

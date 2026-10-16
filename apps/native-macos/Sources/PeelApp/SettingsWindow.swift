@@ -21,15 +21,22 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
     draft = SettingsDraft(settings)
     applied = settings
     self.apply = apply
+    let size = NSSize(width: 460, height: 336)
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 460, height: 336),
+      contentRect: NSRect(origin: .zero, size: size),
       styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.title = "Settings"
     window.isReleasedWhenClosed = false
     super.init(window: window)
     window.delegate = self
-    window.contentViewController = NSHostingController(
+    let hosting = NSHostingController(
       rootView: SettingsView(draft: draft, changed: { [weak self] in self?.commit() }))
+    // Don't let SwiftUI grow the frame from the origin after center() — that parks the window high and right.
+    hosting.sizingOptions = []
+    window.contentViewController = hosting
+    window.setContentSize(size)
+    window.contentMinSize = size
+    window.contentMaxSize = size
     window.center()
   }
   required init?(coder: NSCoder) { fatalError("Not supported") }

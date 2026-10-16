@@ -1,0 +1,7 @@
+--- a/cocoa/ScintillaCocoa.mm
++++ b/cocoa/ScintillaCocoa.mm
+@@ -2033 +2033,3 @@
+-		const CGFloat docWidth = Wrapping() ? clipRect.size.width : scrollWidth;
++		// Never let the document view be narrower than the viewport: with scroll width tracking
++		// the content can be only a few pixels wide, and clicks outside the document view miss the editor.
++		const CGFloat docWidth = Wrapping() ? clipRect.size.width : std::max<CGFloat>(scrollWidth, clipRect.size.width);

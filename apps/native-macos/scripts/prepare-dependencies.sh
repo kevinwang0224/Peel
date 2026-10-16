@@ -30,3 +30,13 @@ elif ! patch --dry-run --silent --reverse -p1 -d "$native_root/Dependencies/scin
   echo "Scintilla empty-line patch does not match the dependency source." >&2
   exit 1
 fi
+
+# With scroll width tracking the document view shrinks to the text width, leaving the rest of the
+# editor unclickable. Keep it at least as wide as the viewport.
+width_patch="$native_root/patches/scintilla-document-min-width.patch"
+if patch --dry-run --silent --forward -p1 -d "$native_root/Dependencies/scintilla" < "$width_patch" >/dev/null 2>&1; then
+  patch --silent --forward -p1 -d "$native_root/Dependencies/scintilla" < "$width_patch"
+elif ! patch --dry-run --silent --reverse -p1 -d "$native_root/Dependencies/scintilla" < "$width_patch" >/dev/null 2>&1; then
+  echo "Scintilla document-width patch does not match the dependency source." >&2
+  exit 1
+fi

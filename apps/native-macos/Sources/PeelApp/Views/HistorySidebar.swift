@@ -3,6 +3,7 @@ import SwiftUI
 
 @MainActor
 struct HistorySidebar: View {
+  @Environment(\.displayScale) private var displayScale
   let model: WorkspaceModel
   let actions: WorkspaceActions
   /// Rows highlighted in the list. One row is the open document; ⌘/⇧-click can add more.
@@ -69,6 +70,16 @@ struct HistorySidebar: View {
       }
     }
     .listStyle(.sidebar)
+    .scrollContentBackground(.hidden)
+    .background(Color(nsColor: .textBackgroundColor).ignoresSafeArea(.container, edges: .top))
+    // Same hairline as the extraction divider so both sides of the editor match.
+    .overlay(alignment: .trailing) {
+      Rectangle()
+        .fill(Color(nsColor: .separatorColor).opacity(0.6))
+        .frame(width: 1 / displayScale)
+        .ignoresSafeArea(.container, edges: .top)
+        .allowsHitTesting(false)
+    }
     // Native list gestures: double-click renames, right-click shows the menu, and plain
     // clicks keep selecting the row anywhere (text included).
     .contextMenu(forSelectionType: String.self) { ids in
