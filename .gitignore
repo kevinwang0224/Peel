@@ -2,15 +2,7 @@
 .idea/
 node_modules/
 
-# JavaScript workspace output
-apps/*/node_modules/
-apps/*/out/
-apps/*/dist/
-apps/*/.eslintcache
-packages/*/dist/
-
 # Local build output
-PeelApp/build/
 DerivedData/
 
 # Xcode user-specific files
@@ -21,7 +13,10 @@ DerivedData/
 logo_v2.png
 AGENTS.local.md
 
-# Native macOS dependencies and build products
-apps/native-macos/Dependencies/
-apps/native-macos/.build/
-apps/native-macos/build/
+# SwiftPM dependencies and build products
+/Sources/PeelEditor/Vendor/
+/.build/
+/build/
+
+# Python development tools
+__pycache__/

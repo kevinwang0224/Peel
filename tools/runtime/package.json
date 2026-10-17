@@ -1,0 +1,15 @@
+{
+  "name": "peel-runtime-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node bundle-runtime.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.27.7",
+    "jsonpath-plus": "10.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

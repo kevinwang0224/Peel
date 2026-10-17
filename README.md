@@ -2,11 +2,10 @@
 
 [中文说明](README_zh.md)
 
-**Peel** is a lightweight JSON formatter and editor for macOS. It is a native app built with SwiftUI, AppKit editor/window bridges, Scintilla Cocoa, SQLite and a disposable JavaScriptCore helper. It targets macOS 14+ on Apple Silicon and runs without WebView or Node. See [native build, migration and verification instructions](apps/native-macos/README.md).
+**Peel** is a native JSON editor for macOS, built with SwiftUI, AppKit, Scintilla Cocoa, SQLite and JavaScriptCore. It targets macOS 14+ on Apple Silicon.
 
 ```bash
-bash apps/native-macos/scripts/build.sh
-open "apps/native-macos/build/Peel Native.app"
+make run
 ```
 
 ## Features
@@ -22,22 +21,30 @@ open "apps/native-macos/build/Peel Native.app"
 
 | Path | Description |
 |------|-------------|
-| [`apps/native-macos/`](apps/native-macos/) | Native macOS app (Swift 6, SwiftUI, AppKit, Scintilla) |
-| [`packages/shared/`](packages/shared/) | **Platform-agnostic** JSON utilities, extraction logic, types, and history helpers (`@peel/shared`) |
-| `apps/extension/` | Reserved for a future **browser extension** (reuses `@peel/shared` only) |
+| [`Package.swift`](Package.swift) | Swift package and executable products |
+| [`Sources/`](Sources/) | App, JSON core, native editor and extraction process |
+| [`Tests/`](Tests/) | Native core tests, grouped by feature |
+| [`Resources/`](Resources/) | App icons, source artwork and licenses |
+| [`scripts/`](scripts/) | Build, test and dependency preparation |
+| [`tools/`](tools/) | Benchmarks, editor diagnostics and extraction runtime bundling |
+| [`docs/`](docs/) | Development, architecture and implementation history |
+
+See [architecture](docs/architecture.md) for module responsibilities and [development](docs/development.md) for build requirements, data migration and verification.
 
 ## Common scripts
 
-Run from the repo root (`npm install` first):
+Run from the repo root. Building and testing require Xcode with the macOS SDK; Node.js is only needed to regenerate the bundled extraction runtime.
 
 | Command | Purpose |
 |--------|---------|
-| `npm run build` / `npm run native:build` | Build the native app |
-| `npm run dev:native` | Build and open the native app |
-| `npm run native:test` | Run native tests |
-| `npm run build:shared` | Build the `@peel/shared` package |
-| `npm run lint` / `test` / `typecheck` | Run in all workspaces that define them |
+| `make build` | Build `build/Peel.app` |
+| `make run` | Build and open Peel |
+| `make test` | Run native tests |
+| `make benchmark` | Build and benchmark Peel |
+| `make runtime` | Regenerate the bundled extraction runtime (requires Node.js) |
+
+Run `make` to list available commands. Optional Node.js tooling is isolated in `tools/runtime/`; normal builds and tests use the checked-in extraction bundle.
 
 ## App icons
 
-`apps/native-macos/Resources/IconSource/` holds the SVG sources (`AppIcon.svg` for dark, `AppIconLight.svg` for light). The app switches `AppIcon.icns` / `AppIconLight.icns` with the current appearance.
+`Resources/Icons/Source/` holds the SVG sources (`AppIcon.svg` for dark, `AppIconLight.svg` for light). The app switches `AppIcon.icns` / `AppIconLight.icns` with the current appearance.

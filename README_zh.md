@@ -2,11 +2,10 @@
 
 [English README](README.md)
 
-**Peel** 是一款 macOS 上的 JSON 格式化与编辑工具。使用 SwiftUI、AppKit 编辑器/窗口桥接、Scintilla Cocoa、SQLite 和独立 JavaScriptCore 提取进程构建，面向低内存和快速启动。要求 macOS 14+、Apple Silicon 和 Xcode，运行不需要 WebView 或 Node。详见 [原生版本说明](apps/native-macos/README.md)。
+**Peel** 是一款原生 macOS JSON 编辑器，使用 SwiftUI、AppKit、Scintilla Cocoa、SQLite 和 JavaScriptCore 构建。支持 macOS 14+ 和 Apple Silicon。
 
 ```bash
-bash apps/native-macos/scripts/build.sh
-open "apps/native-macos/build/Peel Native.app"
+make run
 ```
 
 ## 功能概览
@@ -22,22 +21,30 @@ open "apps/native-macos/build/Peel Native.app"
 
 | 路径 | 说明 |
 |------|------|
-| [`apps/native-macos/`](apps/native-macos/) | 原生 macOS 应用（Swift 6、SwiftUI、AppKit、Scintilla） |
-| [`packages/shared/`](packages/shared/) | **与平台无关** 的 JSON 工具、提取逻辑、类型与历史相关辅助（`@peel/shared`） |
-| `apps/extension/` | 预留的**浏览器扩展**工作区，后续只复用 `@peel/shared` |
+| [`Package.swift`](Package.swift) | Swift 包及可执行产物定义 |
+| [`Sources/`](Sources/) | 应用、JSON 核心、原生编辑器及提取进程 |
+| [`Tests/`](Tests/) | 按功能组织的原生核心测试 |
+| [`Resources/`](Resources/) | 应用图标、源图和许可证 |
+| [`scripts/`](scripts/) | 构建、测试和依赖准备脚本 |
+| [`tools/`](tools/) | 性能测量、编辑器诊断及提取脚本打包工具 |
+| [`docs/`](docs/) | 开发指南、架构说明及历史记录 |
+
+模块职责见[架构说明](docs/architecture.md)，构建环境、数据迁移与验证方法见[开发指南](docs/development.md)。
 
 ## 常用根目录脚本
 
-先执行 `npm install`：
+在仓库根目录执行。构建和测试需要 Xcode 及 macOS SDK；只有重新打包提取脚本时才需要 Node.js。
 
 | 命令 | 用途 |
 |------|------|
-| `npm run build` / `npm run native:build` | 构建原生应用 |
-| `npm run dev:native` | 构建并打开原生应用 |
-| `npm run native:test` | 运行原生测试 |
-| `npm run build:shared` | 构建 `@peel/shared` |
-| `npm run lint` / `test` / `typecheck` | 在定义了对应脚本的工作区中运行 |
+| `make build` | 构建 `build/Peel.app` |
+| `make run` | 构建并打开 Peel |
+| `make test` | 运行原生测试 |
+| `make benchmark` | 构建并测量 Peel 的性能 |
+| `make runtime` | 重新打包提取脚本，需要 Node.js |
+
+执行 `make` 可查看全部命令。可选的 Node.js 工具单独放在 `tools/runtime/`，日常构建和测试使用已提交的提取脚本产物。
 
 ## 应用图标
 
-SVG 源文件在 `apps/native-macos/Resources/IconSource/`（`AppIcon.svg` 为深色，`AppIconLight.svg` 为浅色）。应用按当前外观切换 `AppIcon.icns` / `AppIconLight.icns`。
+SVG 源文件在 `Resources/Icons/Source/`（`AppIcon.svg` 为深色，`AppIconLight.svg` 为浅色）。应用按当前外观切换 `AppIcon.icns` / `AppIconLight.icns`。
