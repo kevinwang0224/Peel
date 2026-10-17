@@ -475,10 +475,51 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
     return .terminateLater
   }
+  /// Menu bar glyph: the same `{ ... }` mark as the app icon, drawn as a template image so the
+  /// system tints it for light, dark and highlighted menu bars.
+  private static func statusBarIcon() -> NSImage {
+    // Same glyph proportions as the 1024pt app icon (Monaco 270pt, 10pt stroke, dot radius 20),
+    // scaled down for the menu bar with the braces and dots pulled closer to keep it narrow.
+    let scale: CGFloat = 0.046
+    let size = NSSize(width: 22, height: 16)
+    let image = NSImage(size: size, flipped: false) { rect in
+      guard let context = NSGraphicsContext.current?.cgContext else { return false }
+      let center = CGPoint(x: rect.midX, y: rect.midY)
+      context.setFillColor(NSColor.black.cgColor)
+      context.setStrokeColor(NSColor.black.cgColor)
+      context.setLineWidth(10 * scale)
+      context.setLineJoin(.round)
+
+      let font = CTFontCreateWithName("Monaco" as CFString, 270 * scale, nil)
+      for (character, offset) in [("{" as Character, CGFloat(-168)), ("}" as Character, CGFloat(168))] {
+        var glyph = CGGlyph()
+        var unit = character.utf16.first!
+        guard CTFontGetGlyphsForCharacters(font, &unit, &glyph, 1),
+          let path = CTFontCreatePathForGlyph(font, glyph, nil)
+        else { continue }
+        let bounds = path.boundingBoxOfPath
+        var move = CGAffineTransform(
+          translationX: center.x + offset * scale - bounds.midX, y: center.y - bounds.midY)
+        guard let placed = path.copy(using: &move) else { continue }
+        context.addPath(placed)
+        context.drawPath(using: .fillStroke)
+      }
+      for offset: CGFloat in [-60, 0, 60] {
+        let radius = 20 * scale
+        context.fillEllipse(
+          in: CGRect(
+            x: center.x + offset * scale - radius, y: center.y - radius,
+            width: radius * 2, height: radius * 2))
+      }
+      return true
+    }
+    image.isTemplate = true
+    image.accessibilityDescription = "Peel"
+    return image
+  }
   private func setupStatusItem() {
     let status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    status.button?.image = NSImage(
-      systemSymbolName: "curlybraces", accessibilityDescription: "Peel")
+    status.button?.image = Self.statusBarIcon()
     let menu = NSMenu()
     menu.addItem(item("Open Peel", #selector(showMain(_:))))
     menu.addItem(item("Quick Paste", #selector(quickPaste)))
