@@ -3,38 +3,58 @@
     <clipPath id="iconClip">
       <rect x="84" y="84" width="856" height="856" rx="180"/>
     </clipPath>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F1F1F3"/>
+      <stop offset="0.55" stop-color="#E3E3E6"/>
+      <stop offset="1" stop-color="#D2D2D6"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.5" cy="0" r="0.9">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise"/>
+      <feColorMatrix in="noise" type="matrix"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 -0.3"/>
+    </filter>
   </defs>
 
-  <g clip-path="url(#iconClip)">
-    <rect x="84" y="84" width="856" height="856" rx="180" fill="#FFFFFF"/>
-    <rect x="84" y="84" width="856" height="856" rx="180" fill="none" stroke="#000000" stroke-opacity="0.08" stroke-width="2"/>
-  </g>
+  <!-- Scaled to the 824pt squircle of the macOS icon grid (856 * 0.9626). -->
+  <g transform="translate(512 512) scale(0.9626) translate(-512 -512)">
+    <g clip-path="url(#iconClip)">
+      <rect x="84" y="84" width="856" height="856" rx="180" fill="url(#silver)"/>
+      <rect x="84" y="84" width="856" height="856" fill="url(#sheen)"/>
+      <rect x="84" y="84" width="856" height="856" filter="url(#grain)" opacity="0.04"/>
+      <rect x="85" y="85" width="854" height="854" rx="179" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"/>
+      <rect x="84" y="84" width="856" height="856" rx="180" fill="none" stroke="#000000" stroke-opacity="0.12" stroke-width="2"/>
+    </g>
 
-  <g
-    font-family="Monaco, Menlo, monospace"
-    fill="#000000"
-    stroke="#000000"
-    stroke-width="10"
-    stroke-linejoin="round"
-    paint-order="stroke fill"
-  >
-    <text
-      x="280"
-      y="522"
-      font-size="270"
-      text-anchor="middle"
-      dominant-baseline="middle">{</text>
-    <text
-      x="744"
-      y="522"
-      font-size="270"
-      text-anchor="middle"
-      dominant-baseline="middle">}</text>
-  </g>
+    <g
+      font-family="Monaco, Menlo, monospace"
+      fill="#1E1E21"
+      stroke="#1E1E21"
+      stroke-width="10"
+      stroke-linejoin="round"
+      paint-order="stroke fill"
+    >
+      <text
+        x="280"
+        y="522"
+        font-size="270"
+        text-anchor="middle"
+        dominant-baseline="middle">{</text>
+      <text
+        x="744"
+        y="522"
+        font-size="270"
+        text-anchor="middle"
+        dominant-baseline="middle">}</text>
+    </g>
 
-  <g fill="#000000">
-    <circle cx="432" cy="512" r="20"/>
-    <circle cx="512" cy="512" r="20"/>
-    <circle cx="592" cy="512" r="20"/>
+    <g fill="#1E1E21">
+      <circle cx="432" cy="512" r="20"/>
+      <circle cx="512" cy="512" r="20"/>
+      <circle cx="592" cy="512" r="20"/>
+    </g>
   </g>
 </svg>
