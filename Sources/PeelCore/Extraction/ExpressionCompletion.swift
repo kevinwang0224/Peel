@@ -3,8 +3,9 @@ import Foundation
 /// Completion for the extraction expression editor: `data.` or `$.store.` followed by the keys that
 /// exist at that point of the document, `data[` / `data["` for keys that are not identifiers, and
 /// callback parameters such as `x` in `data.items.map(x => x.` (also destructured, `({id}) =>`),
-/// and chains through method calls such as `data.items.filter(…).map(x => x.id).`. Pure functions;
-/// the editor only supplies text.
+/// and chains through method calls such as `data.items.filter(…).map(x => x.id).` or explicit
+/// `JSON.parse(data.value).` calls. Access chains also follow JSON object/array strings
+/// automatically. Pure functions; the editor only supplies text.
 public enum ExpressionCompletion {
   public enum Segment: Equatable, Sendable {
     case key(String)
@@ -14,6 +15,8 @@ public enum ExpressionCompletion {
     /// A method call in the chain. `map` carries the path the callback returns from its
     /// parameter (`x => x.id` is `[.key("id")]`) when it is that simple.
     case call(String, map: [Segment]?)
+    /// Decode the string produced by the preceding path, as an explicit `JSON.parse` call does.
+    case parseJSON
   }
   public enum Kind: Equatable, Sendable {
     /// After `.` or `?.`.
@@ -39,7 +42,7 @@ public enum ExpressionCompletion {
 
   /// Locates a completion point at the end of `text`, for example `data.items[0].na`.
   /// `root` is the name the expression starts from (`data` for JavaScript, `$` for JSONPath).
-  /// Only access chains are analysed, with known built-in methods allowed in the middle of them;
+  /// Only access chains are analysed, with known built-in methods and `JSON.parse` calls allowed;
   /// string literals and anything not rooted at `root` or at a recognised callback parameter
   /// yield nil.
   public static func site(in text: String, root: String) -> Site? {
@@ -90,7 +93,10 @@ public enum ExpressionCompletion {
 
   // MARK: - Locating the completion point
 
-  private static func site(_ chars: [UInt16], root: String) -> Site? {
+  private static func site(
+    _ chars: [UInt16], root: String, argumentStart: Int? = nil, parseDepth: Int = 0
+  ) -> Site? {
+    guard parseDepth <= 32 else { return nil }
     var i = chars.count
     let kind: Kind
     let prefix: String
@@ -149,6 +155,17 @@ public enum ExpressionCompletion {
         let method = String(decoding: chars[start..<end], as: UTF16.self)
         i = start
         guard consumeDot() else { return nil }
+        if method == "parse", root != "$", let start = globalJSONStart(chars, endingAt: i) {
+          // Keep the surrounding text so callback parameters still resolve, but require
+          // the entire argument to be an access chain rather than an arbitrary expression.
+          guard let argument = site(
+            Array(chars[..<close]) + [dot], root: root, argumentStart: open + 1,
+            parseDepth: parseDepth + 1), argument.kind == .member, argument.prefix.isEmpty
+          else { return nil }
+          base = argument.path + [.parseJSON]
+          i = start
+          break
+        }
         let mapping = method == "map" ? mappedPath(chars, open: open, close: close) : nil
         segments.append(.call(method, map: mapping))
         continue
@@ -168,7 +185,23 @@ public enum ExpressionCompletion {
       }
       break
     }
+    if let argumentStart {
+      guard i >= argumentStart, chars[argumentStart..<i].allSatisfy(isSpace) else { return nil }
+    }
     return Site(kind: kind, path: base + segments.reversed(), prefix: prefix)
+  }
+
+  /// Recognise the global receiver, excluding property paths such as `other.JSON.parse`.
+  private static func globalJSONStart(_ chars: [UInt16], endingAt end: Int) -> Int? {
+    var end = end
+    while end > 0, isSpace(chars[end - 1]) { end -= 1 }
+    var start = end
+    while start > 0, isIdentifier(chars[start - 1]) { start -= 1 }
+    guard String(decoding: chars[start..<end], as: UTF16.self) == "JSON" else { return nil }
+    var previous = start
+    while previous > 0, isSpace(chars[previous - 1]) { previous -= 1 }
+    guard previous == 0 || chars[previous - 1] != dot else { return nil }
+    return start
   }
 
   /// Methods whose callback receives array elements, with the parameter positions that do.
@@ -356,6 +389,9 @@ public enum ExpressionCompletion {
   private static func resolve(_ path: [Segment], in root: Any) -> Any? {
     var value = root
     for segment in path {
+      // Explicit JSON.parse still consumes the original string; ordinary access
+      // automatically follows an embedded object or array.
+      if segment != .parseJSON { value = navigable(value) }
       switch (segment, value) {
       case (.key(let key), let object as [String: Any]):
         guard let next = object[key] else { return nil }
@@ -371,11 +407,19 @@ public enum ExpressionCompletion {
       case (.call(let name, let map), _):
         guard let result = call(name, map: map, on: value) else { return nil }
         value = result
+      case (.parseJSON, let text as String):
+        guard (try? JSONDocument.summary(text)) != nil, let parsed = parse(text) else { return nil }
+        value = parsed
       default:
         return nil
       }
     }
-    return value
+    return navigable(value)
+  }
+
+  private static func navigable(_ value: Any) -> Any {
+    guard let text = value as? String, text.utf8.count <= maxDocumentBytes else { return value }
+    return JSONDocument.embeddedStructure(text) ?? value
   }
   /// A representative value of what `value.name(…)` returns. Only the type matters.
   private static func call(_ name: String, map: [Segment]?, on value: Any) -> Any? {
@@ -415,10 +459,12 @@ public enum ExpressionCompletion {
     }
   }
   private static func merged(_ array: [Any]) -> Any? {
-    guard let first = array.first else { return nil }
+    guard let raw = array.first else { return nil }
+    let first = navigable(raw)
     guard first is [String: Any] else { return first }
     var keys: [String: Any] = [:]
-    for case let object as [String: Any] in array.prefix(sampledElements) {
+    for element in array.prefix(sampledElements) {
+      guard let object = navigable(element) as? [String: Any] else { continue }
       for (key, value) in object where keys[key] == nil { keys[key] = value }
     }
     return keys

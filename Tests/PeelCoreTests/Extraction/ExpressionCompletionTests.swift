@@ -7,9 +7,15 @@ final class ExpressionCompletionTests: XCTestCase {
     {"name":"peel","items":[{"id":1,"title":"a","user-id":3,"tags":["x"]}],
      "meta":{"total":2,"page":1,"ok":true},"count":5,"1st":0}
     """
-  private func complete(_ text: String, root: String = "data", javascript: Bool = true) -> [String] {
+  private let stringDocument = #"""
+    {"value":"{\"msg\":\"[{\\\"clazzId\\\":7,\\\"courseId\\\":8}]\",\"eventId\":\"event-1\"}",
+     "rows":[{"payload":"{\"id\":1}"}],"invalid":"{\"id\":1,}","scalar":"42"}
+    """#
+  private func complete(
+    _ text: String, root: String = "data", javascript: Bool = true, document: String? = nil
+  ) -> [String] {
     guard let site = ExpressionCompletion.site(in: text, root: root),
-      let value = ExpressionCompletion.parse(document)
+      let value = ExpressionCompletion.parse(document ?? self.document)
     else { return [] }
     return ExpressionCompletion.candidates(for: site, in: value, javascript: javascript)
   }
@@ -165,5 +171,65 @@ final class ExpressionCompletionTests: XCTestCase {
     XCTAssertEqual(complete("data.items.map(({ tags }) => tags.").contains("filter"), true)
     XCTAssertEqual(complete("data.items.map(({ id }) => title."), [])
     XCTAssertEqual(complete("data.items.map(({ id }, { title }) => title."), [])
+  }
+
+  func testJSONParseCompletesDecodedObjectFields() {
+    XCTAssertEqual(complete("JSON.parse(data.value).", document: stringDocument), ["eventId", "msg"])
+    XCTAssertEqual(complete("JSON.parse(data.value).m", document: stringDocument), ["msg"])
+    XCTAssertEqual(
+      complete("JSON.parse(data[\"value\"])[", document: stringDocument), ["\"eventId\"", "\"msg\""])
+    XCTAssertEqual(complete("JSON.parse(data.value)['m", document: stringDocument), ["msg"])
+    XCTAssertEqual(complete("return JSON . parse ( data.value ).m", document: stringDocument), ["msg"])
+    XCTAssertEqual(complete("data.value.", document: stringDocument), ["eventId", "msg"])
+  }
+
+  func testNestedJSONParseCompletesArraysAndCallbacks() {
+    let expression = "JSON.parse(JSON.parse(data.value).msg)"
+    XCTAssertTrue(complete(expression + ".", document: stringDocument).contains("map"))
+    XCTAssertEqual(complete(expression + "[0].", document: stringDocument), ["clazzId", "courseId"])
+    XCTAssertEqual(complete(expression + ".map(x => x.co", document: stringDocument), ["courseId"])
+    XCTAssertEqual(
+      complete("data.rows.map(x => JSON.parse(x.payload).", document: stringDocument), ["id"])
+    XCTAssertEqual(
+      complete("data.rows.map(x => JSON.parse(x.payload))[0].", document: stringDocument), ["id"])
+  }
+
+  func testJSONParseCompletesScalarTypesAndRejectsUnsupportedArguments() {
+    XCTAssertTrue(complete("JSON.parse(data.scalar).", document: stringDocument).contains("toFixed"))
+    for expression in [
+      "JSON.parse(data.invalid).", "JSON.parse(data.missing).", "JSON.parse(data.rows).",
+      "JSON.parse(data.value + data.value).", "JSON.parse(data.value, x => x).",
+      "other.JSON.parse(data.value).", "data.JSON.parse(data.value).",
+    ] {
+      XCTAssertEqual(complete(expression, document: stringDocument), [], expression)
+    }
+    XCTAssertNil(ExpressionCompletion.site(in: "JSON.parse($.value).", root: "$"))
+  }
+
+  func testJSONStringFieldsCompleteThroughObjectsArraysAndCallbacks() {
+    XCTAssertEqual(complete("data.value.m", document: stringDocument), ["msg"])
+    XCTAssertEqual(complete("data.value.msg[0].", document: stringDocument), ["clazzId", "courseId"])
+    XCTAssertEqual(complete("data.value.msg[0].cl", document: stringDocument), ["clazzId"])
+    XCTAssertEqual(complete("data.value['m", document: stringDocument), ["msg"])
+    XCTAssertTrue(complete("data.value.msg.", document: stringDocument).contains("map"))
+    XCTAssertTrue(complete("data.value.msg.length.", document: stringDocument).contains("toFixed"))
+    XCTAssertEqual(complete("data.value.msg.map(x => x.co", document: stringDocument), ["courseId"])
+    XCTAssertEqual(complete("data.rows.map(x => x.payload.", document: stringDocument), ["id"])
+    XCTAssertEqual(complete("data.rows.map(x => x.payload)[0].", document: stringDocument), ["id"])
+    XCTAssertEqual(
+      complete("$.value.msg[0].", root: "$", javascript: false, document: stringDocument),
+      ["clazzId", "courseId"])
+  }
+
+  func testEncodedArrayElementsAreMergedForCompletion() {
+    let document = #"{"rows":["{\"a\":1}","{\"b\":2}"]}"#
+    XCTAssertEqual(complete("data.rows.map(x => x.", document: document), ["a", "b"])
+    XCTAssertEqual(complete("data.rows[0].", document: document), ["a"])
+  }
+
+  func testInvalidJSONAndScalarStringsKeepStringCompletions() {
+    XCTAssertTrue(complete("data.invalid.", document: stringDocument).contains("toUpperCase"))
+    XCTAssertTrue(complete("data.scalar.", document: stringDocument).contains("toUpperCase"))
+    XCTAssertEqual(complete("data.invalid.id.", document: stringDocument), [])
   }
 }

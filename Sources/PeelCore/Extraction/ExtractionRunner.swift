@@ -122,7 +122,14 @@ private final class ScriptExecution: @unchecked Sendable {
     guard child.terminationStatus == 0, !response.isEmpty else {
       throw ExtractionError.helperFailed
     }
-    return try JSONDecoder().decode(ExtractionResult.self, from: response)
+    let result = try JSONDecoder().decode(ExtractionResult.self, from: response)
+    // A string result can contain JSON. Use the strict formatter to preserve number
+    // spelling and property order without parsing it into JavaScript values again.
+    guard result.status == "success", !result.structured,
+      let first = result.text.first(where: { !$0.isWhitespace }), first == "{" || first == "[",
+      let formatted = try? JSONDocument.format(result.text)
+    else { return result }
+    return ExtractionResult(status: result.status, text: formatted, structured: true)
   }
 }
 

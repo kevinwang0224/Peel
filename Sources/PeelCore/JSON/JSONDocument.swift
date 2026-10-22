@@ -75,6 +75,15 @@ public enum JSONDocument {
   }
 
   public static func pasted(_ text: String) -> String { (try? formatInput(text)) ?? text }
+
+  /// A string may expose an embedded object or array during expression navigation.
+  /// Validate strictly before using Foundation, which also accepts some non-JSON input.
+  public static func embeddedStructure(_ text: String) -> Any? {
+    guard let first = text.first(where: { !$0.isWhitespace }), first == "{" || first == "[",
+      (try? summary(text)) != nil
+    else { return nil }
+    return try? JSONSerialization.jsonObject(with: Data(text.utf8))
+  }
 }
 
 private struct Parser {

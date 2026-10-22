@@ -1769,27 +1769,63 @@ var PeelRuntime = (() => {
     Script
   };
 
-  // runtime-entry.js
-  function freeze(value) {
-    if (value && typeof value === "object") {
-      Object.values(value).forEach(freeze);
-      Object.freeze(value);
+  // json-navigation.js
+  function createJSONNavigation(root) {
+    const views = /* @__PURE__ */ new WeakMap();
+    const sources = /* @__PURE__ */ new WeakMap();
+    const strings = /* @__PURE__ */ new Map();
+    function visit(original) {
+      let value = original;
+      if (typeof value === "string") {
+        const first = value.trimStart()[0];
+        if (first !== "{" && first !== "[") return value;
+        if (strings.has(value)) return strings.get(value);
+        try {
+          value = JSON.parse(value);
+        } catch {
+          strings.set(original, original);
+          return original;
+        }
+      }
+      if (value === null || typeof value !== "object") return value;
+      if (views.has(value)) return views.get(value);
+      const view = Array.isArray(value) ? [] : {};
+      views.set(value, view);
+      sources.set(view, original);
+      if (typeof original === "string") {
+        strings.set(original, view);
+        Object.defineProperty(view, Symbol.toPrimitive, { value: () => original });
+      }
+      for (const key of Object.keys(value)) {
+        Object.defineProperty(view, key, {
+          enumerable: true,
+          get: () => visit(value[key])
+        });
+      }
+      return Object.freeze(view);
     }
-    return value;
+    return {
+      data: visit(root),
+      source: (value) => sources.get(value) ?? value
+    };
   }
-  function render(value) {
+
+  // runtime-entry.js
+  function render(value, source) {
+    value = source(value);
     if (value === void 0) return { status: "empty", text: "No result", structured: false };
     if (typeof value === "function") return { status: "success", text: `[Function${value.name ? ": " + value.name : ""}]`, structured: false };
     if (typeof value === "bigint") return { status: "success", text: String(value) + "n", structured: false };
     if (value === null || typeof value !== "object") return { status: "success", text: String(value), structured: false };
-    const text = JSON.stringify(value, null, 2);
-    return text === void 0 ? render(void 0) : { status: "success", text, structured: true };
+    const text = JSON.stringify(value, (_key, item) => source(item), 2);
+    return text === void 0 ? render(void 0, source) : { status: "success", text, structured: true };
   }
   function run(requestJSON) {
     const request = JSON.parse(requestJSON);
     const query = request.query.trim();
     if (!query) throw Error("Expression required");
-    const data = freeze(JSON.parse(request.text));
+    const navigation = createJSONNavigation(JSON.parse(request.text));
+    const data = navigation.data;
     let value;
     if (request.mode === "jsonpath") {
       const matches = JSONPath({ path: query, json: data, wrap: true });
@@ -1797,7 +1833,7 @@ var PeelRuntime = (() => {
     } else {
       value = new Function("data", '"use strict"; return (' + query + ");")(data);
     }
-    Promise.resolve(value).then((value2) => render(value2)).then((result) => peelComplete(JSON.stringify(result))).catch((error) => peelComplete(JSON.stringify({
+    Promise.resolve(value).then((value2) => render(value2, navigation.source)).then((result) => peelComplete(JSON.stringify(result))).catch((error) => peelComplete(JSON.stringify({
       status: "error",
       text: String(error?.message ?? error),
       structured: false

@@ -12,7 +12,8 @@ make run
 
 - **Scintilla-based editing** with syntax highlighting, validation, and familiar shortcuts
 - **Automatic paste formatting** for valid JSON; non-JSON text is kept as-is
-- **Extraction** via JavaScript or **JSONPath**
+- **Extraction** via JavaScript or **JSONPath**, with automatic formatting of string results containing valid JSON objects or arrays
+- **JSON string navigation**: paths such as `data.value.msg[0].clazzId` support completion and extraction through nested JSON objects or arrays encoded as strings
 - **History sidebar**: create, search, pin, rename, and delete records; edits persist automatically
 - **Import / export**: open JSON files and export
 - **Theme**: system, light, or dark, with a matching `{ ... }` app icon
