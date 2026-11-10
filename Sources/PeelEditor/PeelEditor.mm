@@ -85,6 +85,15 @@ static const NSInteger PeelMatchLimit = 10000;
 @property(assign) PeelEditorView *peelOwner;
 @end
 @implementation PeelContentView
+- (instancetype)initWithFrame:(NSRect)frame {
+    if ((self = [super initWithFrame:frame])) {
+        // Views built with the macOS 14+ SDK don't clip by default, so rubber-banding past the top
+        // passes drawRect: a rect above the document. Scintilla maps it to negative lines and writes
+        // before its line buffer. Clipping keeps dirty rects inside the document.
+        self.clipsToBounds = YES;
+    }
+    return self;
+}
 - (NSRect)accessibilityFrame {
     if (!self.window) return NSZeroRect;
     return [self.window convertRectToScreen:[self convertRect:self.visibleRect toView:nil]];

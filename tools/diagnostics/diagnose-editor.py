@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Render empty/trailing-empty-line documents under ASan in an isolated app bundle.
 
-This catches the Scintilla 5.6.7 layout under-read, and stresses cursor registration
-and editor destruction. Passing does not prove an intermittent OS cursor crash fixed.
+This catches the Scintilla 5.6.7 layout under-read and the negative-line layout when the
+clip view rubber-bands above the document, and stresses cursor registration and editor
+destruction. Passing does not prove an intermittent OS cursor crash fixed.
 """
 from pathlib import Path
 import os
@@ -49,6 +50,7 @@ with tempfile.TemporaryDirectory(prefix='peel-editor-diagnostic-') as directory:
     result = subprocess.run([str(executable)], env=dict(os.environ, ASAN_OPTIONS='detect_leaks=0'),
                             capture_output=True, text=True, timeout=60)
     print(result.stdout, end='')
-    if result.returncode != 0 or 'EDITOR_LIFECYCLE_PASS=500' not in result.stdout or 'AddressSanitizer' in result.stderr:
+    passed = all(marker in result.stdout for marker in ('EDITOR_LIFECYCLE_PASS=500', 'EDITOR_OVERSCROLL_PASS=3'))
+    if result.returncode != 0 or not passed or 'AddressSanitizer' in result.stderr:
         print(result.stderr)
         raise RuntimeError(f'Editor lifecycle diagnostic failed: exit {result.returncode}')

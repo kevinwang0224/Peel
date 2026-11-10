@@ -2,6 +2,14 @@
 #import <AppKit/AppKit.h>
 #import "PeelEditor.h"
 
+static NSScrollView *FindScrollView(NSView *view) {
+    for (NSView *subview in view.subviews) {
+        if ([subview isKindOfClass:[NSScrollView class]]) return (NSScrollView *)subview;
+        if (NSScrollView *found = FindScrollView(subview)) return found;
+    }
+    return nil;
+}
+
 int main(int argc, const char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
@@ -36,8 +44,32 @@ int main(int argc, const char **argv) {
                 }
             }
         }
+        // Rubber-banding past the top: the clip view sits above the document. A top content inset
+        // reproduces that position without event injection; ASan flags any negative-line layout.
+        @autoreleasepool {
+            NSMutableString *document = [NSMutableString stringWithString:@"{\n"];
+            for (int line = 0; line < 300; line++) [document appendFormat:@"  \"key%d\": %d,\n", line, line];
+            [document appendString:@"  \"end\": true\n}\n"];
+            PeelEditorView *editor = [[PeelEditorView alloc] initWithFrame:NSMakeRect(0, 0, 900, 600)];
+            window.contentView = editor;
+            [editor loadDocument:document];
+            [editor layoutSubtreeIfNeeded];
+            NSClipView *clip = FindScrollView(editor).contentView;
+            if (!clip) { fprintf(stderr, "Missing editor scroll view\n"); return 1; }
+            const CGFloat overscrolls[] = {10, 80, 400};
+            for (CGFloat overscroll : overscrolls) {
+                clip.contentInsets = NSEdgeInsetsMake(overscroll, 0, 0, 0);
+                NSRect above = NSMakeRect(0, -overscroll, clip.bounds.size.width, clip.bounds.size.height);
+                [clip scrollToPoint:[clip constrainBoundsRect:above].origin];
+                if (clip.bounds.origin.y != -overscroll) { fprintf(stderr, "Could not overscroll the editor\n"); return 1; }
+                NSBitmapImageRep *rep = [editor bitmapImageRepForCachingDisplayInRect:editor.bounds];
+                [editor cacheDisplayInRect:editor.bounds toBitmapImageRep:rep];
+            }
+            window.contentView = nil;
+        }
         [window close];
     }
+    fprintf(stdout, "EDITOR_OVERSCROLL_PASS=3\n");
     fprintf(stdout, "EDITOR_LIFECYCLE_PASS=500\n");
     return 0;
 }
