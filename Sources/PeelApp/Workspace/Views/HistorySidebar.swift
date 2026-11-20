@@ -52,10 +52,17 @@ struct HistorySidebar: View {
           Section(isExpanded: expiredExpanded) {
             records(section.records)
           } header: {
-            Text("\(section.group.title) · \(section.records.count)")
+            SectionTitle(
+              title: section.group.title, count: section.records.count,
+              divider: expiredExpanded.wrappedValue && !touchesSelection(section.records.first))
           }
         } else {
-          Section(section.group.title) { records(section.records) }
+          Section {
+            records(section.records)
+          } header: {
+            SectionTitle(
+              title: section.group.title, divider: !touchesSelection(section.records.first))
+          }
         }
       }
       if needsMore {
@@ -144,9 +151,14 @@ struct HistorySidebar: View {
     }
   }
   private func records(_ values: [HistorySummary]) -> some View {
-    ForEach(values) { record in
-      HistoryRow(record: record).tag(record.id)
+    ForEach(Array(values.enumerated()), id: \.element.id) { index, record in
+      // Like Apple Notes, a separator that touches a highlighted row is hidden.
+      let divider = index > 0 && !touchesSelection(record) && !touchesSelection(values[index - 1])
+      HistoryRow(record: record, divider: divider).tag(record.id)
     }
+  }
+  private func touchesSelection(_ record: HistorySummary?) -> Bool {
+    record.map { selection.contains($0.id) } ?? false
   }
   private func rename(_ id: String) {
     Task {
@@ -156,8 +168,51 @@ struct HistorySidebar: View {
   }
 }
 
+/// Date bucket header styled like Apple Notes: large, bold, primary label color.
+private struct SectionTitle: View {
+  let title: String
+  var count: Int?
+  /// Hairline under the title; kept in layout when hidden so the header height never jumps.
+  var divider = true
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Text(title)
+          .font(.title3.weight(.bold))
+          .foregroundStyle(.primary)
+        if let count {
+          Text("\(count)")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+        }
+      }
+      .lineLimit(1)
+      // Sidebar headers run 13.5pt further right than row content; trim so every
+      // separator ends at the same x, as in Notes.
+      Hairline().padding(.trailing, 13.5).opacity(divider ? 1 : 0)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .textCase(nil)
+    .padding(.top, 6)
+  }
+}
+
+/// Notes-style separator: one physical pixel in the system separator color.
+private struct Hairline: View {
+  @Environment(\.displayScale) private var displayScale
+  var body: some View {
+    Rectangle()
+      .fill(Color(nsColor: .separatorColor))
+      .frame(height: 1 / displayScale)
+      .allowsHitTesting(false)
+  }
+}
+
 private struct HistoryRow: View {
   let record: HistorySummary
+  /// Hairline above the row, inset to the text like Apple Notes.
+  var divider = false
   private var detail: String {
     guard let date = record.updatedDate else { return "" }
     return Calendar.current.isDateInToday(date) || Calendar.current.isDateInYesterday(date)
@@ -175,6 +230,11 @@ private struct HistoryRow: View {
       Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
     }
     .padding(.vertical, 2)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    // An overlay never changes the row height, so toggling it on selection cannot shift rows.
+    .overlay(alignment: .top) {
+      Hairline().opacity(divider ? 1 : 0).offset(y: -4)
+    }
     .help(record.title)
   }
 }
